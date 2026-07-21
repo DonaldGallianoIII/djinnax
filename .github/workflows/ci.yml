@@ -18,4 +18,6 @@ jobs:
           git clone --depth 1 https://github.com/sotetsuk/pgx.git reference-engines/pgx
           git clone --depth 1 https://github.com/instadeepai/jumanji.git reference-engines/jumanji
       - name: Tests (CPU — kernel tests skip by design)
+        env:
+          DJINNAX_REQUIRE_REFS: "1"  # missing refs = failure here, skip locally
         run: pytest tests/ -q

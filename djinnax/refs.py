@@ -44,3 +44,18 @@ class _StubFinder(importlib.abc.MetaPathFinder):
 
 if not any(isinstance(f, _StubFinder) for f in sys.meta_path):
     sys.meta_path.insert(0, _StubFinder())
+
+
+def refs_available() -> bool:
+    """True if the pgx + jumanji reference clones import cleanly.
+
+    Fresh clones don't have reference-engines/ (gitignored) — parity
+    tests skip in that case unless DJINNAX_REQUIRE_REFS is set, which
+    turns a missing reference into a hard failure (CI sets it).
+    """
+    try:
+        import pgx  # noqa: F401
+        import jumanji  # noqa: F401
+    except Exception:
+        return False
+    return True
