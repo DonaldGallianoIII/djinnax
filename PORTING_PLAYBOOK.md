@@ -86,3 +86,29 @@ final: 98-237× the reference. Every rung kept the same parity gate.
 - Storing the RNG key in state → thread keys; hash counters.
 - `float(x)`/`if bool(x)` mid-step → host sync, 10-100×.
 - Benchmarks before parity → you optimized a different game.
+
+## Step 1.5 — collapse stochastic processes (sample outcomes, not loops)
+
+Reverse-engineered games are full of unbounded stochastic loops:
+retry-until-success, reroll-until-valid, draw-until-drop. These are the
+stochastic twin of the while_loop anti-pattern. For each RNG-census site,
+ask: **does anything observable or decidable happen between iterations?**
+
+- **NO** → collapse it to ONE draw from the closed-form outcome
+  distribution (`djinnax/distributions.py`) — exact, O(1), variance
+  fully preserved, counter-hash friendly:
+  | loop in the source | closed form | sampler |
+  |---|---|---|
+  | try until success (per-try prob p) | geometric, E[N]=1/p | `geometric_tries` |
+  | reroll category until valid | renormalized conditional | `conditional_categorical` |
+  | weighted table draw | alias method (LUT-for-distributions) | `build_alias_table` + `alias_sample` |
+  Then apply consequences in one shot (deduct N×cost, advance counters).
+- **YES** (opponent acts between tries, agent decides each retry, state
+  renders) → the iterations are REAL game steps; collapsing them changes
+  the MDP. Keep them as steps.
+
+Parity for collapsed sites is DISTRIBUTIONAL (statistical tests vs the
+naive loop — see tests/test_distributions.py), not bitwise: the stream
+differs from the reference by design. `expected_tries` (always ~1/p) is
+the variance-REMOVING sibling — a debugging/curriculum tool that changes
+the game; never substitute it silently.

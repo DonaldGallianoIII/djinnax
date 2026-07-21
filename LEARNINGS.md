@@ -106,6 +106,7 @@ terms compiles mechanically to both JAX and WebGPU:
 | `reset_where(done)` | auto-reset | tree-map where-select vs template |
 | `analytic(prop)` | closed-form property of structured state | hand-derived expression (e.g. single-tile mask) |
 | `salt(site)` | RNG stream per consumption site | `fold_in` + documented registry |
+| `collapse(process)` | outcome-draw for a stochastic loop with no observable intermediates | closed-form inverse CDF / conditional renorm / alias tables (`distributions.py`) |
 
 Design rule for the DSL: **if a game can't be expressed in these
 primitives, that's the signal it will be slow** — the language should make
