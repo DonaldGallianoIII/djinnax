@@ -1,8 +1,8 @@
 # LEARNINGS — the djinn JAX engine discipline
 
 Living document. Everything empirically learned building and racing the
-djinn-style envs against pgx/jumanji. This is the methodology that shapes
-consulting work, future game engines, and the eventual djinn DSL.
+djinn-style envs against pgx/jumanji. This is the methodology behind every
+number the repo publishes, and the ground truth for the eventual djinn DSL.
 Update it every time a claim is confirmed, killed, or bounded.
 
 ---
@@ -70,7 +70,7 @@ the discipline is free when logic is simple and decisive when it isn't.
    statistics.
 5. **Know your noise floor and respect it.** A same-run A/B of two
    compaction kernels flipped direction across batch sizes — sub-2×
-   deltas on this host are weather, not signal. Only claim gaps that
+   deltas on an unlocked-clock host are weather, not signal. Only claim gaps that
    dwarf the spread.
 6. **Coverage floors on any random-play driver** (did it actually reach
    combat/carousel/termination?) so invariant tests can't pass vacuously.
@@ -147,7 +147,7 @@ taints the sample. The official sweep was re-run frozen.
 of scan unroll {1,4} × PRNG {threefry, unsafe_rbg} at B=8192/65536 gave
 contradictory winners per engine (unroll=4: ttt +3.5×, soko −2.3×, in the
 SAME block; unsafe_rbg flipped sign between settings). Both knobs live
-inside this host's clock-noise envelope; unroll=4 also 3-4×'s compile
+inside the measurement host's clock-noise envelope; unroll=4 also 3-4×'s compile
 time. Defaults stay (unroll=1, threefry); flags remain for a
 controlled-clock machine. Corollary: some engineering questions cannot be
 answered on the hardware you have — say so instead of picking the run you
@@ -275,8 +275,8 @@ disclosed; (c) always ask what else the machine was doing.
   unroll=4 is +56% on the launch-bound trivial env, neutral on heavy
   ones — engine-dependent, defaults kept. Verdict quality scales with
   measurement quality: yesterday "unresolvable", today resolved.
-- **CI contract established**: pytest suite runs 16/16 on GPU, 11+5skip
-  on CPU — the chain-link, analytic-mask, and RNG batteries gate on any
+- **CI contract established**: pytest suite runs fully on GPU, kernel
+  tests self-skip on CPU (current counts: 19 GPU / 14+5skip CPU) — the chain-link, analytic-mask, and RNG batteries gate on any
   machine; kernel tests self-skip without a GPU.
 
 **collapse(process) measured (2026-07-21).** 2048's spawn ported as the

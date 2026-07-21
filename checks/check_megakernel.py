@@ -4,7 +4,7 @@ step_lanes. Closes the parity chain, guards boundaries, proves the
 properties the chaining feature relies on, and deepens the RNG tests.
 
 Chain closure (the big one): megakernel was bit-verified against ITS OWN
-XLA reference — but the 275x-vs-jumanji claim needs step_lanes to be the
+XLA reference — but the headline vs-reference claim needs step_lanes to be the
 same GAME as game2048 (which is what's parity-chained to jumanji).
 check_move_chain_link proves the deterministic move logic identical;
 spawn equivalence is distributional by design (rank-pick uniforms) and

@@ -15,7 +15,7 @@ Usage (GPU shim + 50% cap):
     LD_PRELOAD=$VENV/.../nvidia/nvjitlink/lib/libnvJitLink.so.12 \
     XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 \
     XLA_PYTHON_CLIENT_ALLOCATOR=platform \
-    $VENV/bin/python engine-bench/bench_head_to_head.py
+    $VENV/bin/python benchmarks/bench_head_to_head.py
 """
 
 from __future__ import annotations

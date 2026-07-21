@@ -1,4 +1,4 @@
-# djinn engine-bench — batch-native JAX game engines, with receipts
+# djinnax — batch-native JAX game engines, with receipts
 
 Game environments written in a strict batch-native, branchless JAX
 discipline, raced head-to-head against the well-known JAX env suites

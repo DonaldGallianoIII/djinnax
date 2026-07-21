@@ -1,4 +1,4 @@
-"""Pytest shim: make engine-bench modules importable from tests/.
+"""Pytest shim: make repo modules importable from tests/.
 
 CI contract: on GPU every test runs; on CPU the kernel-touching tests
 skip and the rest (game parity, chain link, RNG batteries) still gate.

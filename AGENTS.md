@@ -1,4 +1,4 @@
-# engine-bench — agent instructions
+# djinnax — agent instructions
 
 JAX game engines in the djinn batch-native discipline, parity-gated
 against pgx/jumanji, measured to 98-237× the references. When writing or

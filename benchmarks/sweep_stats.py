@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Statistical sweep: N independent fresh-process bench runs, then median +
 spread of per-run env-steps/s AND per-run ratios (the within-run ratio is
-the noise-robust quantity on this host — clocks drift between runs).
+the noise-robust quantity on unlocked clocks — they drift between runs).
 
-Runs are strictly sequential (never parallel JAX on this box). Each run is
+Runs are strictly sequential (parallel JAX runs contend for the GPU). Each run is
 a new process so compile caches, allocator state, and clock ramps count as
 independent samples.
 

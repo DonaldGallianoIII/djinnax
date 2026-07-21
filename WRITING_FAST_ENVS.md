@@ -75,7 +75,7 @@ batch-in/batch-out.
 - **The one sanctioned `cond`:** batch-gating an *expensive, batch-rare*
   block — `lax.cond(jnp.any(need), expensive, noop, state)`. Know its
   failure mode: if envs desynchronize, `any(need)` ≈ always true and the
-  amortization collapses (measured 20× on PAC combat). Design phases to
+  amortization collapses (measured 20× on a production training env's combat phase). Design phases to
   stay batch-synchronized if you rely on this.
 - **Orientation canonicalization**: never write per-direction logic four
   times. Transform so every case becomes one case, operate, transform
@@ -142,7 +142,7 @@ launch/bandwidth floor. See `pallas_lab.py` + LEARNINGS for evidence.
 - **One salt per consumption site**, documented in a registry comment;
   derive with `fold_in(key, SALT)`. Never reuse a salt.
 - **Per-entity keys via `vmap(fold_in)`** over entity index — NEVER
-  `broadcast_to(key, ...)` (correlated streams; historical PAC bug).
+  `broadcast_to(key, ...)` (correlated streams — a bug we shipped once).
 - **Hoist per-step keys out of the loop** (runtime v2): one batched
   `split` before `lax.scan`, threaded through `xs` — not fold_ins inside.
 - **Sampling uniform-over-legal**: one uniform per row + cumsum rank pick
@@ -188,7 +188,7 @@ Write the parity harness BEFORE optimizing. Every ladder rung re-runs it.
 ## 8. How to verify speed (short form; LEARNINGS §3 is the law)
 
 1. `assert jax.default_backend() == "gpu"` (JAX falls back to CPU
-   silently; use the LD_PRELOAD shim on this box).
+   silently; use the LD_PRELOAD shim, HOW_TO_RUN.md).
 2. Identical protocol across compared engines; within-run ratios only.
 3. Headlines: n≥5 fresh-process sweep, median [min..max]
    (`sweep_stats.py`). Code frozen for all N runs.

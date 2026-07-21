@@ -24,7 +24,7 @@ lowering (`compiler_params=plt.CompilerParams()`) runs fine on sm_89 and
 has none of those tile constraints. Rung-4 work is hardware-generation-
 specific in a way rungs 1-3 never are.
 
-Measurement caveat printed at runtime: clocks are UNLOCKED on this host;
+Measurement caveat printed at runtime: clocks are UNLOCKED on the measurement host;
 interleaved medians with spread only, per LEARNINGS §3 rule 9.
 """
 

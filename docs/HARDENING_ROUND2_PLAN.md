@@ -1,5 +1,8 @@
 # Hardening round 2 — tuning, curves, null-result revisits, CI-ification
 
+> Historical plan document, imported from the pre-release tree; file
+> paths and test counts reflect that point in time.
+
 **Status:** items 1-4 COMPLETE (`bbd80c2`); item 5 sweep running.
 Results: (1) tuning null — block=128/default warps already optimal, all
 alternatives regress or straddle 1.0; (2) amortization 189M→1.2B→2.0B
