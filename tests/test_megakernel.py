@@ -13,6 +13,22 @@ requires_gpu = pytest.mark.skipif(
 )
 
 
+def test_oriented_move_equals_allmoves():
+    """P1 (external review R1): the orient-select step is bit-identical
+    to the all-four-moves step under XLA scan — the kernel rewrite is
+    the same game by construction, not by luck."""
+    import jax.numpy as jnp
+    from djinnax.megakernel import (
+        _fresh_inputs, _xla_reference, step_lanes, step_lanes_allmoves,
+    )
+
+    board, uniforms = _fresh_inputs(384, 3)
+    new_out = jax.jit(lambda b, u: _xla_reference(b, u, step_lanes))(board, uniforms)
+    old_out = jax.jit(lambda b, u: _xla_reference(b, u, step_lanes_allmoves))(board, uniforms)
+    for a, b, name in zip(new_out, old_out, ("board", "score", "done")):
+        assert jnp.array_equal(a, b), name
+
+
 def test_move_chain_link():
     cm.check_move_chain_link(n_boards=512)
 

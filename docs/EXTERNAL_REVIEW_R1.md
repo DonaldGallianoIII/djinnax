@@ -182,7 +182,14 @@ floor_bench that absolute floor numbers before/after are not comparable.
 
 ## P-series — performance (Reviewer 2; every item gated by parity + interleaved pairwise A/B, medians [min..max], per LEARNINGS §3)
 
-### P1. Megakernel computes all four direction-move networks every step — HIGH (PLAUSIBLE) — OPEN
+### P1. Megakernel computes all four direction-move networks every step — HIGH (PLAUSIBLE) — CONFIRMED + ADOPTED
+n=5 fresh-process interleaved sweep (quiet GPU, data/p1_orient_ab.jsonl):
+oriented vs all-moves **1.45× [1.36..1.47] @B=1024, 1.41× [1.34..1.46]
+@8192, 1.57× [1.51..1.59] @65536** — every run-median above 1.33.
+Bit-identical outputs (variant parity asserted in-process before every
+timing; full 8-test megakernel battery green; permanent CPU equivalence
+test added). Old variant kept as `step_lanes_allmoves` for the receipt.
+Official README headline refresh deferred to ONE end-of-Batch-C sweep.
 `djinnax/megakernel.py:153-158`
 
 Each step runs the full move network (6 bubble passes + 3 merges over

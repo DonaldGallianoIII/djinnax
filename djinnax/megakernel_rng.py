@@ -76,16 +76,16 @@ def hash_uniform(env_id, t, j, seed):
     return (h >> jnp.uint32(8)).astype(jnp.float32) * jnp.float32(1.0 / (1 << 24))
 
 
-def step_rng(lanes, mask, score, env_id, t, seed):
+def step_rng(lanes, mask, score, env_id, t, seed, step=None):
     """One step with in-register RNG. Same function in-kernel and in XLA."""
     u = tuple(hash_uniform(env_id, t, j, seed) for j in range(N_UNI))
-    return step_lanes(lanes, mask, score, u)
+    return (step or step_lanes)(lanes, mask, score, u)
 
 
 # --- Mode B megakernel -------------------------------------------------------
 
 
-def _make_kernel_rng(n_steps: int, block: int = BLOCK):
+def _make_kernel_rng(n_steps: int, block: int = BLOCK, step=None):
     def kernel(board_ref, score_ref, seed_ref, out_board_ref, out_score_ref, out_done_ref):
         pid = pl.program_id(0)
         env_id = (pid * block + jnp.arange(block)).astype(jnp.uint32)
@@ -98,7 +98,7 @@ def _make_kernel_rng(n_steps: int, block: int = BLOCK):
 
         def body(t, carry):
             lanes, mask, score, done = carry
-            return step_rng(lanes, mask, score, env_id, t + t_offset, seed)
+            return step_rng(lanes, mask, score, env_id, t + t_offset, seed, step)
 
         lanes, mask, score, done = lax.fori_loop(0, n_steps, body, (lanes, mask, score, done))
         for i in range(16):
@@ -110,7 +110,7 @@ def _make_kernel_rng(n_steps: int, block: int = BLOCK):
 
 def run_megakernel_rng(board: jax.Array, seed: jax.Array, score: jax.Array | None = None,
                        n_steps: int = N_STEPS, block: int = BLOCK,
-                       compiler_params=None):
+                       compiler_params=None, step_fn=None):
     """board (B, 16) int8; seed (2,) uint32 = [seed, t_offset]; score (B,)
     f32 carried across chained launches (mask is recomputed from the board
     at entry — exact, because the analytic reset mask provably equals the
@@ -126,7 +126,7 @@ def run_megakernel_rng(board: jax.Array, seed: jax.Array, score: jax.Array | Non
         score = jnp.zeros((Bn,), dtype=jnp.float32)
     params = {"compiler_params": compiler_params} if compiler_params else _TRITON
     return pl.pallas_call(
-        _make_kernel_rng(n_steps, block),
+        _make_kernel_rng(n_steps, block, step_fn),
         out_shape=(
             jax.ShapeDtypeStruct((Bn, 16), jnp.int8),
             jax.ShapeDtypeStruct((Bn,), jnp.float32),

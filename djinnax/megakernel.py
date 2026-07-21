@@ -106,6 +106,55 @@ def _select4(options, action):
     return out
 
 
+# Orient-select wiring (P1): direction d's move IS the canonical left move
+# on lanes permuted group-major by _GROUPS[d]. _PERM[d][slot] = source cell
+# for canonical slot; _INV[d][cell] = canonical slot holding that cell.
+# _PERM[3] is the identity (left is canonical), and reward accumulation
+# order (canonical group g == _GROUPS[d][g]) matches _move_dir exactly,
+# so the selected direction's outputs are bit-identical to _move_dir's.
+_PERM = {d: [c for group in _GROUPS[d] for c in group] for d in range(4)}
+_INV = {d: [0] * 16 for d in range(4)}
+for _d in range(4):
+    for _slot, _cell in enumerate(_PERM[_d]):
+        _INV[_d][_cell] = _slot
+
+
+def _permute_by_action(lanes, action, table):
+    """lanes[table[d][j]] selected per-env by action — 3 wheres per slot."""
+    out = []
+    for j in range(16):
+        v = lanes[table[0][j]]
+        for d in (1, 2, 3):
+            v = jnp.where(action == d, lanes[table[d][j]], v)
+        out.append(v)
+    return tuple(out)
+
+
+def _apply_move_oriented(lanes, action):
+    """ONE move network: permute into canonical layout by action, move
+    left, inverse-permute. ~35-40% less ALU than computing all four
+    directions and selecting (external review R1 finding P1)."""
+    sel = _permute_by_action(lanes, action, _PERM)
+    new_sel = list(sel)
+    reward = jnp.zeros_like(lanes[0], dtype=jnp.float32)
+    for g in range(4):
+        a, b, c, e, r = _row_move_4(*new_sel[4 * g : 4 * g + 4])
+        new_sel[4 * g : 4 * g + 4] = (a, b, c, e)
+        reward = reward + r
+    return _permute_by_action(tuple(new_sel), action, _INV), reward
+
+
+def _apply_move_allmoves(lanes, action):
+    """Reference variant: all four direction networks, then select —
+    kept for the interleaved A/B against _apply_move_oriented."""
+    moved, rewards = [], []
+    for d in range(4):
+        nl, rw, _ = _move_dir(lanes, d)
+        moved.append(nl)
+        rewards.append(rw)
+    return _select4(moved, action), _select4(rewards, action)
+
+
 def _spawn_lanes(lanes, u_cell, u_val, enabled):
     """Rank-pick a uniform empty cell; write exp 1 (p=.9) / 2 (p=.1)."""
     empties = [(l == 0) for l in lanes]
@@ -125,62 +174,67 @@ def _spawn_lanes(lanes, u_cell, u_val, enabled):
     return tuple(out), r
 
 
-def step_lanes(lanes, mask, score, u):
-    """One env step on 16 board lanes. u = 5 uniforms (BLOCK,) each.
-    Runs identically inside the kernel and under XLA scan."""
-    u_act, u_cell, u_val, u_rcell, u_rval = u
+def _make_step(apply_move):
+    """Build a step function around one of the two move-apply variants.
+    Everything except step 2 is shared, so the variants cannot drift."""
 
-    # 1. sample action from carried mask (rank-pick)
-    n_legal = mask[0].astype(jnp.int32)
-    for m in mask[1:]:
-        n_legal = n_legal + m.astype(jnp.int32)
-    n_safe = jnp.maximum(n_legal, 1)
-    r = jnp.minimum((u_act * n_safe.astype(jnp.float32)).astype(jnp.int32),
-                    n_safe - 1)
-    csum = jnp.zeros_like(n_legal)
-    action = jnp.zeros_like(n_legal)
-    for d in range(4):
-        hit = mask[d] & (csum == r)
-        action = jnp.where(hit, d, action)
-        csum = csum + mask[d].astype(jnp.int32)
-    was_legal = jnp.zeros_like(mask[0])
-    for d in range(4):
-        was_legal = was_legal | (mask[d] & (action == d))
+    def step(lanes, mask, score, u):
+        u_act, u_cell, u_val, u_rcell, u_rval = u
 
-    # 2. all four moves of the current board; select by action
-    moved, rewards = [], []
-    for d in range(4):
-        nl, rw, _ = _move_dir(lanes, d)
-        moved.append(nl)
-        rewards.append(rw)
-    new_lanes = _select4(moved, action)
-    reward = _select4(rewards, action)
-    reward = jnp.where(was_legal, reward, 0.0)
+        # 1. sample action from carried mask (rank-pick)
+        n_legal = mask[0].astype(jnp.int32)
+        for m in mask[1:]:
+            n_legal = n_legal + m.astype(jnp.int32)
+        n_safe = jnp.maximum(n_legal, 1)
+        r = jnp.minimum((u_act * n_safe.astype(jnp.float32)).astype(jnp.int32),
+                        n_safe - 1)
+        csum = jnp.zeros_like(n_legal)
+        action = jnp.zeros_like(n_legal)
+        for d in range(4):
+            hit = mask[d] & (csum == r)
+            action = jnp.where(hit, d, action)
+            csum = csum + mask[d].astype(jnp.int32)
+        was_legal = jnp.zeros_like(mask[0])
+        for d in range(4):
+            was_legal = was_legal | (mask[d] & (action == d))
 
-    # 3. spawn (gated on legality)
-    new_lanes, _ = _spawn_lanes(new_lanes, u_cell, u_val, was_legal)
+        # 2. apply the chosen move (variant point: oriented vs all-moves)
+        new_lanes, reward = apply_move(lanes, action)
+        reward = jnp.where(was_legal, reward, 0.0)
 
-    # 4. next mask from the post-spawn board
-    new_mask = []
-    for d in range(4):
-        _, _, ch = _move_dir(new_lanes, d)
-        new_mask.append(ch)
-    done = ~(new_mask[0] | new_mask[1] | new_mask[2] | new_mask[3])
+        # 3. spawn (gated on legality)
+        new_lanes, _ = _spawn_lanes(new_lanes, u_cell, u_val, was_legal)
 
-    # 5. in-register reset where done: fresh single-tile board + analytic mask
-    rcell = jnp.minimum((u_rcell * 16.0).astype(jnp.int32), 15)
-    rval = jnp.where(u_rval < 0.9, jnp.int32(1), jnp.int32(2))
-    fresh = tuple(
-        jnp.where(done & (rcell == i), rval, jnp.where(done, 0, new_lanes[i]))
-        for i in range(16)
-    )
-    ry, rx = rcell // 4, rcell % 4
-    analytic = (ry > 0, rx < 3, ry < 3, rx > 0)                 # up,right,down,left
-    out_mask = tuple(
-        jnp.where(done, analytic[d], new_mask[d]) for d in range(4)
-    )
-    new_score = jnp.where(done, 0.0, score + reward)
-    return fresh, out_mask, new_score, done
+        # 4. next mask from the post-spawn board
+        new_mask = []
+        for d in range(4):
+            _, _, ch = _move_dir(new_lanes, d)
+            new_mask.append(ch)
+        done = ~(new_mask[0] | new_mask[1] | new_mask[2] | new_mask[3])
+
+        # 5. in-register reset where done: fresh single-tile board + analytic mask
+        rcell = jnp.minimum((u_rcell * 16.0).astype(jnp.int32), 15)
+        rval = jnp.where(u_rval < 0.9, jnp.int32(1), jnp.int32(2))
+        fresh = tuple(
+            jnp.where(done & (rcell == i), rval, jnp.where(done, 0, new_lanes[i]))
+            for i in range(16)
+        )
+        ry, rx = rcell // 4, rcell % 4
+        analytic = (ry > 0, rx < 3, ry < 3, rx > 0)             # up,right,down,left
+        out_mask = tuple(
+            jnp.where(done, analytic[d], new_mask[d]) for d in range(4)
+        )
+        new_score = jnp.where(done, 0.0, score + reward)
+        return fresh, out_mask, new_score, done
+
+    return step
+
+
+# Production step (P1 orient-select) and the pre-P1 reference variant.
+step_lanes = _make_step(_apply_move_oriented)
+step_lanes_allmoves = _make_step(_apply_move_allmoves)
+step_lanes.__doc__ = """One env step on 16 board lanes. u = 5 uniforms
+(BLOCK,) each. Runs identically inside the kernel and under XLA scan."""
 
 
 def _initial_mask(lanes):
@@ -190,30 +244,33 @@ def _initial_mask(lanes):
 # --- the megakernel ---------------------------------------------------------
 
 
-def _mega_kernel(board_ref, uni_ref, out_board_ref, out_score_ref, out_done_ref):
-    lanes = tuple(board_ref[:, i].astype(jnp.int32) for i in range(16))
-    mask = _initial_mask(lanes)
-    score = jnp.zeros_like(lanes[0], dtype=jnp.float32)
-    done = jnp.zeros_like(lanes[0], dtype=jnp.bool_)
+def _make_mega_kernel(step):
+    def kernel(board_ref, uni_ref, out_board_ref, out_score_ref, out_done_ref):
+        lanes = tuple(board_ref[:, i].astype(jnp.int32) for i in range(16))
+        mask = _initial_mask(lanes)
+        score = jnp.zeros_like(lanes[0], dtype=jnp.float32)
+        done = jnp.zeros_like(lanes[0], dtype=jnp.bool_)
 
-    def body(t, carry):
-        lanes, mask, score, done = carry
-        u = tuple(uni_ref[t, j, :] for j in range(N_UNI))
-        lanes, mask, score, done = step_lanes(lanes, mask, score, u)
-        return (lanes, mask, score, done)
+        def body(t, carry):
+            lanes, mask, score, done = carry
+            u = tuple(uni_ref[t, j, :] for j in range(N_UNI))
+            lanes, mask, score, done = step(lanes, mask, score, u)
+            return (lanes, mask, score, done)
 
-    lanes, mask, score, done = lax.fori_loop(0, N_STEPS, body, (lanes, mask, score, done))
-    for i in range(16):
-        out_board_ref[:, i] = lanes[i].astype(jnp.int8)
-    out_score_ref[...] = score
-    out_done_ref[...] = done
+        lanes, mask, score, done = lax.fori_loop(0, N_STEPS, body, (lanes, mask, score, done))
+        for i in range(16):
+            out_board_ref[:, i] = lanes[i].astype(jnp.int8)
+        out_score_ref[...] = score
+        out_done_ref[...] = done
+
+    return kernel
 
 
-def run_megakernel(board: jax.Array, uniforms: jax.Array):
+def run_megakernel(board: jax.Array, uniforms: jax.Array, step_fn=None):
     """board (B, 16) int8; uniforms (N_STEPS, N_UNI, B) f32."""
     Bn = board.shape[0]
     return pl.pallas_call(
-        _mega_kernel,
+        _make_mega_kernel(step_fn or step_lanes),
         out_shape=(
             jax.ShapeDtypeStruct((Bn, 16), jnp.int8),
             jax.ShapeDtypeStruct((Bn,), jnp.float32),
@@ -236,8 +293,7 @@ def run_megakernel(board: jax.Array, uniforms: jax.Array):
 # --- the XLA reference: SAME step function under lax.scan --------------------
 
 
-@jax.jit
-def run_xla_reference(board: jax.Array, uniforms: jax.Array):
+def _xla_reference(board: jax.Array, uniforms: jax.Array, step):
     lanes = tuple(board[:, i].astype(jnp.int32) for i in range(16))
     mask = _initial_mask(lanes)
     score = jnp.zeros_like(lanes[0], dtype=jnp.float32)
@@ -245,13 +301,18 @@ def run_xla_reference(board: jax.Array, uniforms: jax.Array):
 
     def body(carry, u):
         lanes, mask, score, done = carry
-        lanes, mask, score, done = step_lanes(
+        lanes, mask, score, done = step(
             lanes, mask, score, tuple(u[j] for j in range(N_UNI)))
         return (lanes, mask, score, done), None
 
     (lanes, mask, score, done), _ = lax.scan(body, (lanes, mask, score, done), uniforms)
     out_board = jnp.stack([l.astype(jnp.int8) for l in lanes], axis=-1)
     return out_board, score, done
+
+
+@jax.jit
+def run_xla_reference(board: jax.Array, uniforms: jax.Array):
+    return _xla_reference(board, uniforms, step_lanes)
 
 
 # --- parity + bench ----------------------------------------------------------
