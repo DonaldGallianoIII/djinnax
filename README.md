@@ -21,6 +21,24 @@ frozen-code sweep on a quiet RTX 4070 (full intervals in
 `docs`/commit history). Peak absolute: **1.9B env-steps/s** for full
 2048 games, RNG included, in one kernel launch.
 
+## Thirty seconds of usage
+
+```python
+import jax, djinnax
+
+env = djinnax.make_game2048_lut()            # or djinnax.Djinn2048()
+key = jax.random.PRNGKey(0)
+state = env.init(key, n_envs=8192)           # leading-B everywhere
+actions = jax.numpy.zeros((8192,), dtype=jax.numpy.int32)
+state, reward = env.step(state, actions, jax.random.fold_in(key, 1))
+```
+
+Step signatures are per-env (each returns exactly what its game
+defines — docstrings state them); every env is batch-native with
+in-step auto-reset, so the line above is the whole API. The megakernel
+entry point is `djinnax.run_megakernel_rng` (GPU required; see
+HOW_TO_RUN.md).
+
 ## Read this before anything else
 
 | you want to… | read |
