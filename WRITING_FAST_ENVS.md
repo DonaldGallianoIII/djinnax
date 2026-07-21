@@ -176,12 +176,18 @@ launch/bandwidth floor. See `pallas_lab.py` + LEARNINGS for evidence.
 |---|---|---|
 | Parity vs reference | the game is CORRECT (else speed is meaningless) | check_parity.py |
 | Variant equivalence | optimized rung ≡ naive rung, bit-identical chained steps | v2≡v3 in check_parity |
-| Mask/apply property | contract of §5, all actions × both directions | test_mask_apply_consistency.py |
-| Conformance driver | invariants under mask-guided random play, every step | test_conformance.py |
-| Trace guard | `chex.assert_max_traces(step, n=1)` — no silent recompiles | test_conformance.py |
-| Serialization | state survives to_bytes/from_bytes with dtypes + behavior | test_serialization.py |
+| Mask/apply property | contract of §5, all actions × both directions | training-repo tier* |
+| Conformance driver | invariants under mask-guided random play, every step | training-repo tier* |
+| Trace guard | `chex.assert_max_traces(step, n=1)` — no silent recompiles | training-repo tier* |
+| Serialization | state survives to_bytes/from_bytes with dtypes + behavior | training-repo tier* |
 | Sampler uniformity | any custom sampler is distribution-correct | floor_bench.py |
 | Distribution parity | collapsed stochastic sites ≡ the naive loop statistically | tests/test_distributions.py, benchmarks/spawn_collapse_ab.py |
+
+\* The starred rows apply when the env feeds a training loop (masked
+policies, checkpointing, long-lived jit caches). The benchmark envs in
+this repo have no action masks or serialization surface, so those gates
+live in the downstream training integration, not here — the in-repo
+gates are the unstarred rows, all present in `checks/` and `tests/`.
 
 Write the parity harness BEFORE optimizing. Every ladder rung re-runs it.
 

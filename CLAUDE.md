@@ -28,10 +28,11 @@ this file; it overrides generic JAX habits.**
 
 ## The gate — nothing merges without
 Parity vs the reference implementation (build the replay harness BEFORE
-optimizing), variant≡variant bit-equivalence when optimizing, mask/apply
-property test, conformance driver, `chex.assert_max_traces(step, 1)`,
-serialization round-trip. Templates: checks/, 
-tests/.
+optimizing) and variant≡variant bit-equivalence when optimizing —
+templates in checks/ and tests/. For envs feeding a training loop, also:
+mask/apply property test, conformance driver,
+`chex.assert_max_traces(step, 1)`, serialization round-trip (those gates
+live in the training integration; see WRITING_FAST_ENVS §7).
 
 ## Measurement rules
 Print + check `jax.default_backend()` (CPU fallback is silent — see

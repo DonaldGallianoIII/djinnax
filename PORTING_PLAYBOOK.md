@@ -64,9 +64,10 @@ is free, and further effort belongs to the training loop, not the env.
 ## Step 4 — the gate (no exceptions)
 
 Parity vs reference · variant≡variant bit-equivalence at every rung ·
-mask/apply property both directions · conformance driver with coverage
-floors · trace guard · serialization round-trip · RNG distribution tests
-if you added a sampler or hash. Then, and only then, `sweep_stats.py`.
+RNG distribution tests if you added a sampler or hash · and, for envs
+feeding a training loop, the training-tier gates (mask/apply property,
+conformance driver, trace guard, serialization round-trip — see
+WRITING_FAST_ENVS §7). Then, and only then, `sweep_stats.py`.
 
 ## Worked example — how 2048's decisions were made
 
