@@ -279,6 +279,17 @@ disclosed; (c) always ask what else the machine was doing.
   on CPU — the chain-link, analytic-mask, and RNG batteries gate on any
   machine; kernel tests self-skip without a GPU.
 
+**collapse(process) measured (2026-07-21).** 2048's spawn ported as the
+reference's rejection loop (random cell, retry if occupied) vs the
+collapsed conditional draw — distribution-parity-verified identical, then
+interleaved on full games: **collapsed is 47-75× faster** (75× at
+B=1024, 47× at 65536; worst-case single-empty-cell boards 49× on the
+spawn alone). A while_loop inside the step doesn't just iterate — it
+breaks step fusion and pays batch-max tail latency every step. One
+collapsed RNG site ≈ the entire branchless-vs-while_loop gap measured
+earlier. The stochastic-loop rung is not a refinement; it is co-equal
+with rung 1.
+
 ## 7. Open questions
 - [ ] WebGPU port: do the same primitives hit the same ratios in-browser?
 - [ ] Controlled-hardware floor study (headless box): unroll/RNG/donation.

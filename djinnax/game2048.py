@@ -143,13 +143,14 @@ class Djinn2048:
 
     n_actions: int = 4
 
-    def __init__(self, move_left_fn=None):
+    def __init__(self, move_left_fn=None, spawn_fn=None):
         self._move_left = move_left_fn or _move_left
+        self._spawn = spawn_fn or _spawn
 
     def init(self, key: jax.Array, n_envs: int) -> G2048State:
         B = n_envs
         board = jnp.zeros((B, 4, 4), dtype=jnp.int8)
-        board, _ = _spawn(board, key, jnp.ones((B,), dtype=jnp.bool_))
+        board, _ = self._spawn(board, key, jnp.ones((B,), dtype=jnp.bool_))
         _, _, can = move_all_directions(board, self._move_left)
         return G2048State(
             board=board,
@@ -186,7 +187,7 @@ class Djinn2048:
         reward = jnp.where(was_legal, reward, 0.0)
 
         k_spawn, k_reset = jax.random.split(key)
-        new_board, _ = _spawn(new_board, k_spawn, was_legal)
+        new_board, _ = self._spawn(new_board, k_spawn, was_legal)
 
         _, _, can = move_all_directions(new_board, self._move_left)  # next mask
         mask = can.T                                           # (B, 4)
@@ -194,7 +195,7 @@ class Djinn2048:
 
         # In-step auto-reset (house style): fresh single-tile board per env.
         # Its mask is analytic (perf v2) — no move passes.
-        fresh, fresh_cell = _spawn(
+        fresh, fresh_cell = self._spawn(
             jnp.zeros((B, 4, 4), dtype=jnp.int8), k_reset,
             jnp.ones((B,), dtype=jnp.bool_),
         )

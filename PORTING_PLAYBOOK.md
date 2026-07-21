@@ -107,6 +107,14 @@ ask: **does anything observable or decidable happen between iterations?**
   renders) → the iterations are REAL game steps; collapsing them changes
   the MDP. Keep them as steps.
 
+**Measured on 2048** (`benchmarks/spawn_collapse_ab.py`): the original
+game's spawn is "pick a random cell, retry if occupied." Porting that
+loop faithfully instead of collapsing it to one conditional draw makes
+the WHOLE game **47-75× slower** (median, interleaved, B=1024-65536) —
+one rejection loop, distribution-identical outcomes, an order and a half
+of magnitude. This is the single most expensive porting mistake we have
+measured.
+
 Parity for collapsed sites is DISTRIBUTIONAL (statistical tests vs the
 naive loop — see tests/test_distributions.py), not bitwise: the stream
 differs from the reference by design. `expected_tries` (always ~1/p) is
