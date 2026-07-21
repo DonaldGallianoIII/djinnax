@@ -24,8 +24,6 @@ from __future__ import annotations
 import statistics
 import time
 
-import djinnax.refs  # noqa: F401
-
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -36,7 +34,6 @@ from djinnax.megakernel import (
     BLOCK, N_STEPS, N_UNI, _TRITON, _fresh_inputs, _initial_mask,
     run_megakernel, step_lanes,
 )
-import benchmarks.bench_head_to_head as bh
 
 
 # --- counter hash RNG --------------------------------------------------------
@@ -215,6 +212,8 @@ def _interleave(name, run_a, run_b, args_a, args_b, rounds=8):
 
 
 def bench(Bn):
+    import benchmarks.bench_head_to_head as bh  # repo-only; not shipped in the wheel
+
     board, _ = _fresh_inputs(Bn, 1)
     seed = jnp.asarray([42, 0], dtype=jnp.uint32)
     mk_b = jax.jit(run_megakernel_rng)

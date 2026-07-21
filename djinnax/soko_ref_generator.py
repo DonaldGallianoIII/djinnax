@@ -1,6 +1,10 @@
 """Fixed-level Generator injected into jumanji's Sokoban — both engines draw
 from the identical soko_levels fixture, so the level distribution cannot
-differ between them."""
+differ between them.
+
+Reference glue: importing this module requires the reference clones and
+their deps (see HOW_TO_RUN.md). The rest of the package never imports it.
+"""
 
 from __future__ import annotations
 

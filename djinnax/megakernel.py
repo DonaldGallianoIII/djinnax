@@ -28,8 +28,6 @@ from __future__ import annotations
 import statistics
 import time
 
-import djinnax.refs  # noqa: F401
-
 import jax
 import jax.numpy as jnp
 from jax import lax

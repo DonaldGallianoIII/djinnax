@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.abc
 import importlib.machinery
+import importlib.util
 import sys
 import types
 from pathlib import Path
@@ -21,7 +22,13 @@ class _Any:
         return self
 
 
-_STUB_ROOTS = ("huggingface_hub", "tqdm", "esquilax")
+# Stub only the reference-engine deps that are NOT genuinely installed —
+# a real package must never be shadowed by a stub.
+_STUB_ROOTS = tuple(
+    name
+    for name in ("huggingface_hub", "tqdm", "esquilax")
+    if importlib.util.find_spec(name) is None
+)
 
 
 class _StubLoader(importlib.abc.Loader):
