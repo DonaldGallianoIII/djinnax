@@ -41,6 +41,41 @@ def test_conditional_matches_rejection_loop():
         assert abs((ours == k).mean() - renorm[k]) < 0.01, f"P(k={k})"
 
 
+def test_geometric_edge_inputs():
+    """External review R1 finding C1: u==1.0 (inclusive-source contract
+    break) and tiny p used to hit an undefined float->int32 cast whose
+    garbage the n>=1 guard laundered into n=1 — the opposite tail."""
+    u = jnp.asarray([0.0, 0.5, 1.0 - 2.0 ** -24, 1.0])
+    for p in (1e-9, 0.3, 1.0):
+        n = np.asarray(geometric_tries(u, p))
+        assert np.all(n >= 1), (p, n)
+        assert np.all(n < 2 ** 31 - 1) and np.all(n > -(2 ** 31)), (p, n)
+        # monotone in u: a later quantile is never fewer tries
+        assert np.all(np.diff(n) >= 0), (p, n)
+    # the killer case: u=1.0 with small p must be the DEEP tail, not 1
+    n_top = int(geometric_tries(jnp.asarray(1.0), 1e-3))
+    assert n_top > 10_000, n_top
+    assert int(geometric_tries(jnp.asarray(1.0), 1.0)) == 1
+
+
+def test_conditional_never_selects_disallowed_at_high_u():
+    """External review R1 finding C2: normalizing with a separately
+    computed sum (not the cumsum's last element) let u->1 produce a
+    target above c[-1], selecting index 0 even when disallowed."""
+    probs = jnp.asarray([0.5, 0.2, 0.2, 0.1])
+    allowed = jnp.asarray([False, True, True, True])  # index 0 forbidden
+    us = jnp.asarray([1.0 - k * 2.0 ** -24 for k in range(64)] + [0.0])
+    idx = np.asarray(conditional_categorical(
+        us, jnp.broadcast_to(probs, (65, 4)), jnp.broadcast_to(allowed, (65, 4))))
+    assert not np.any(idx == 0), idx
+    # degenerate rows: nothing allowed, or allowed mass is all zero -> 0
+    z = conditional_categorical(
+        jnp.asarray([0.7, 0.7]),
+        jnp.asarray([[0.5, 0.5, 0.0, 0.0]] * 2),
+        jnp.asarray([[False] * 4, [False, False, True, True]]))
+    assert np.all(np.asarray(z) == 0), z
+
+
 def test_alias_matches_weights():
     weights = [5.0, 1.0, 3.0, 1.0, 10.0]
     prob, alias = build_alias_table(weights)

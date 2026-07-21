@@ -35,12 +35,23 @@ def geometric_tries(u: jax.Array, p, max_tries=None) -> jax.Array:
     uniform() >= p`. One uniform in, int32 out; E[N] = 1/p.
 
     u: uniforms in [0, 1); p: scalar or broadcastable array in (0, 1].
+    Inputs are clamped to their contract: u to [0, 1-2^-24] (an inclusive
+    [0,1] source would send log1p(-1) to -inf, and the int cast of ±inf
+    is undefined — it typically lands on INT32_MIN, which the n>=1 guard
+    would then silently launder into n=1, the OPPOSITE tail), and the
+    try count to int32 range before the cast (tiny p, e.g. 1e-9 with
+    unlucky u, can exceed 2^31 tries).
     max_tries: optional clamp for downstream fixed-size consumers (note:
     clamping truncates the tail — document it where used).
     """
     p = jnp.asarray(p, dtype=jnp.float32)
+    u = jnp.clip(u, 0.0, 1.0 - 2.0 ** -24)
     # N = 1 + floor(log(1-u)/log(1-p)); log1p keeps small-p precision.
-    n = 1 + jnp.floor(jnp.log1p(-u) / jnp.log1p(-p)).astype(jnp.int32)
+    tries = jnp.floor(jnp.log1p(-u) / jnp.log1p(-p))
+    # Clamp below int32 max BEFORE the cast. The bound must itself be
+    # exactly representable in float32 (ulp at 2^31 is 256; 2^31-2 would
+    # round UP to 2^31 and overflow the cast it exists to prevent).
+    n = 1 + jnp.minimum(tries, 2.0 ** 31 - 256).astype(jnp.int32)
     n = jnp.maximum(n, 1)                     # u==0 edge
     if max_tries is not None:
         n = jnp.minimum(n, max_tries)
@@ -54,14 +65,27 @@ def conditional_categorical(u: jax.Array, probs: jax.Array,
     conditional distribution — one draw, exact.
 
     probs: (..., K) nonnegative weights; allowed: (..., K) bool;
-    u: (...,) uniforms. Rows with nothing allowed return argmax(allowed)
-    = 0 deterministically (guard upstream).
+    u: (...,) uniforms. Degenerate rows — nothing allowed, or every
+    allowed category has zero weight — return index 0 deterministically
+    (guard upstream).
     """
     w = jnp.where(allowed, probs, 0.0)
-    total = w.sum(axis=-1, keepdims=True)
     c = jnp.cumsum(w, axis=-1)
+    # Normalize by the cumsum's OWN last element, not a separately
+    # computed sum: the two reductions aren't bit-identical, and a
+    # target above c[..., -1] would select index 0 even if disallowed.
+    total = c[..., -1:]
     target = u[..., None] * total
-    return jnp.argmax(c > target, axis=-1).astype(jnp.int32)
+    hit = c > target
+    idx = jnp.argmax(hit, axis=-1)
+    # Rounding at u -> 1 can still land target == total exactly; fall
+    # back to the last positive-weight category, never a bogus index 0.
+    k = w.shape[-1]
+    last_pos = (k - 1) - jnp.argmax(jnp.flip(w > 0.0, axis=-1), axis=-1)
+    idx = jnp.where(jnp.any(hit, axis=-1), idx, last_pos)
+    # Degenerate rows (no allowed mass) return 0, as documented.
+    idx = jnp.where(total[..., 0] > 0.0, idx, 0)
+    return idx.astype(jnp.int32)
 
 
 def build_alias_table(weights) -> tuple[np.ndarray, np.ndarray]:
