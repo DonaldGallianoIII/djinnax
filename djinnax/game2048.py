@@ -84,6 +84,44 @@ def _orient(board: jax.Array, action_idx: int) -> jax.Array:
     return board
 
 
+_IDX_GRID = jnp.arange(16).reshape(4, 4)
+# (4, 16) source-index table: orienting a board for action a IS gathering
+# its flat form by _ORIENT_PERM[a] (review P4). Each orientation is an
+# involution, so the SAME gather applies the inverse transform.
+_ORIENT_PERM = jnp.stack(
+    [_orient(_IDX_GRID, a).reshape(16) for a in range(4)]
+).astype(jnp.int32)
+
+
+def _oriented_move_gather(board, action, move_left_fn):
+    """Chosen move via ONE permutation gather each way — no (4,B,4,4)
+    stacks materialized (review P4). Bit-identical to the stack form."""
+    B = action.shape[0]
+    src = _ORIENT_PERM[action]                                # (B, 16)
+    flat = board.reshape(B, 16)
+    oriented = jnp.take_along_axis(flat, src, axis=-1).reshape(B, 4, 4)
+    moved_o, reward = move_left_fn(oriented)
+    new_flat = jnp.take_along_axis(moved_o.reshape(B, 16), src, axis=-1)
+    return new_flat.reshape(B, 4, 4).astype(jnp.int8), reward
+
+
+def _oriented_move_stack(board, action, move_left_fn):
+    """Pre-P4 form: materialize all four orientations twice and
+    sum-select. Kept for the interleaved A/B receipt."""
+    B = action.shape[0]
+    sel = action[None, :, None, None] == jnp.arange(4)[:, None, None, None]
+    oriented = jnp.sum(
+        jnp.where(sel, jnp.stack([_orient(board, a) for a in range(4)]), 0),
+        axis=0,
+    ).astype(jnp.int8)
+    moved_o, reward = move_left_fn(oriented)
+    new_board = jnp.sum(
+        jnp.where(sel, jnp.stack([_orient(moved_o, a) for a in range(4)]), 0),
+        axis=0,
+    ).astype(jnp.int8)
+    return new_board, reward
+
+
 def move_all_directions(board: jax.Array, move_left_fn=None):
     """All 4 moves for the whole batch. board: (B, 4, 4).
 
@@ -194,7 +232,7 @@ class Djinn2048:
     n_actions: int = 4
 
     def __init__(self, move_left_fn=None, spawn_fn=None, reset_spawn_fn=None,
-                 can_move_fn=None):
+                 can_move_fn=None, oriented_move_fn=None):
         self._move_left = move_left_fn or _move_left
         self._spawn = spawn_fn or _spawn
         self._reset_spawn = reset_spawn_fn or _reset_spawn_direct
@@ -203,6 +241,7 @@ class Djinn2048:
         # compare itself remains; a LUT engine plugs a gather instead).
         self._can_move = can_move_fn or (
             lambda b: move_all_directions(b, self._move_left)[2])
+        self._oriented_move = oriented_move_fn or _oriented_move_gather
 
     def _reset_spawn_via_spawn(self, B: int, key: jax.Array):
         """Pre-P2 reset spawn: full spawn machinery on an all-empty board.
@@ -235,16 +274,7 @@ class Djinn2048:
         reset branch.
         """
         B = action.shape[0]
-        sel = action[None, :, None, None] == jnp.arange(4)[:, None, None, None]
-        oriented = jnp.sum(
-            jnp.where(sel, jnp.stack([_orient(state.board, a) for a in range(4)]), 0),
-            axis=0,
-        ).astype(jnp.int8)
-        moved_o, reward = self._move_left(oriented)
-        new_board = jnp.sum(
-            jnp.where(sel, jnp.stack([_orient(moved_o, a) for a in range(4)]), 0),
-            axis=0,
-        ).astype(jnp.int8)
+        new_board, reward = self._oriented_move(state.board, action, self._move_left)
 
         was_legal = jnp.take_along_axis(
             state.action_mask, action[:, None].astype(jnp.int32), axis=-1

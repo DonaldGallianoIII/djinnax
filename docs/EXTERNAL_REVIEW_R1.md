@@ -244,7 +244,13 @@ whichever way the measurement goes.
 **Gate:** distribution tests (spawn histogram) + interleaved A/B at
 B ∈ {1024, 8192, 65536}.
 
-### P4. Oriented move materializes two (4,B,4,4) stacks per step — MEDIUM (PLAUSIBLE) — OPEN
+### P4. Oriented move materializes two (4,B,4,4) stacks per step — MEDIUM (PLAUSIBLE) — CONFIRMED SMALL + ADOPTED
+n=5 interleaved sweep (data/p4_orient_gather_ab.jsonl): null at
+B=1024/8192 (~1.01×), **1.05× [1.045..1.052] at B=65536** — consistent
+across all 5 runs, never worse. The PLAUSIBLE hedge was right: XLA fuses
+most of the stack; the remaining win is the intermediate at the batch
+floor. Gather form (also the simpler code) is now the default; stack
+form kept as `_oriented_move_stack` for the receipt.
 `djinnax/game2048.py:173-182`
 
 `jnp.stack([_orient(board, a) for a in range(4)])` twice per step, then

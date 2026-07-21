@@ -1,0 +1,15 @@
+{"B": 1024, "pair": "stack->gather", "ratio_median": 1.0066537383701473, "ratio_min": 1.0016399860898766, "ratio_max": 1.08633813682251, "steps_per_s_b": 37383412.17422093}
+{"B": 8192, "pair": "stack->gather", "ratio_median": 1.0062141184868314, "ratio_min": 0.9651024664687787, "ratio_max": 5.496919008036542, "steps_per_s_b": 190442496.35984722}
+{"B": 65536, "pair": "stack->gather", "ratio_median": 1.0447270028576008, "ratio_min": 1.034127301314969, "ratio_max": 2.986589822538781, "steps_per_s_b": 772849697.0094532}
+{"B": 1024, "pair": "stack->gather", "ratio_median": 1.0138928068166222, "ratio_min": 0.9976996225128482, "ratio_max": 1.095224720936611, "steps_per_s_b": 37809739.81673622}
+{"B": 8192, "pair": "stack->gather", "ratio_median": 1.0107960516600885, "ratio_min": 0.9775641357546059, "ratio_max": 2.0194843040895254, "steps_per_s_b": 187441658.69027466}
+{"B": 65536, "pair": "stack->gather", "ratio_median": 1.049833785351288, "ratio_min": 1.031835389473233, "ratio_max": 3.037861689452586, "steps_per_s_b": 782158964.4196038}
+{"B": 1024, "pair": "stack->gather", "ratio_median": 1.0103552646759917, "ratio_min": 0.9936556349225882, "ratio_max": 1.0811742413688754, "steps_per_s_b": 38060547.60720693}
+{"B": 8192, "pair": "stack->gather", "ratio_median": 1.1175455397855778, "ratio_min": 0.9375467359124918, "ratio_max": 1.5891054906127562, "steps_per_s_b": 58318087.14522358}
+{"B": 65536, "pair": "stack->gather", "ratio_median": 1.0524537095713382, "ratio_min": 1.0305707055482607, "ratio_max": 6.9415502561365825, "steps_per_s_b": 782622923.5999675}
+{"B": 1024, "pair": "stack->gather", "ratio_median": 1.0203752673265882, "ratio_min": 0.968827604927147, "ratio_max": 1.1014182211678523, "steps_per_s_b": 37538312.2565575}
+{"B": 8192, "pair": "stack->gather", "ratio_median": 1.007780957318868, "ratio_min": 0.828617317644009, "ratio_max": 1.0258950382006438, "steps_per_s_b": 50484335.27920905}
+{"B": 65536, "pair": "stack->gather", "ratio_median": 1.045796566743106, "ratio_min": 0.793337947315389, "ratio_max": 5.57277854959989, "steps_per_s_b": 779431776.9707942}
+{"B": 1024, "pair": "stack->gather", "ratio_median": 1.0202577660587624, "ratio_min": 0.8865362679777202, "ratio_max": 1.1127332536726595, "steps_per_s_b": 32809848.98311021}
+{"B": 8192, "pair": "stack->gather", "ratio_median": 1.0226508797591056, "ratio_min": 0.6200955621443147, "ratio_max": 1.5974132600065931, "steps_per_s_b": 24399583.385967087}
+{"B": 65536, "pair": "stack->gather", "ratio_median": 1.045917616242242, "ratio_min": 0.9935341404036037, "ratio_max": 1.4611910304592413, "steps_per_s_b": 669839095.3256776}
