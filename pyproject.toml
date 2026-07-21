@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "djinnax"
+version = "0.1.0"
+description = "Batch-native, branchless JAX game environments — parity-gated against pgx/jumanji, measured to 98-237x, including an environment-on-chip Triton megakernel"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Donald Galliano III" }]
+keywords = ["jax", "reinforcement-learning", "environments", "gpu", "pallas", "triton"]
+dependencies = ["jax>=0.6", "flax", "chex", "numpy"]
+
+[project.optional-dependencies]
+refs = ["svgwrite", "dm-env", "gymnasium", "requests", "matplotlib"]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://crawdata.ai"
+
+[tool.setuptools]
+packages = ["djinnax"]
