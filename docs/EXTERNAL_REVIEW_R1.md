@@ -43,7 +43,7 @@ they test, performance left on the table, and release friction.
 
 ## C-series — correctness (Reviewer 1)
 
-### C1. `geometric_tries` returns the *opposite tail* for u = 1.0 or tiny p — MEDIUM — OPEN
+### C1. `geometric_tries` returns the *opposite tail* for u = 1.0 or tiny p — MEDIUM — FIXED (4a46326)
 `djinnax/distributions.py:43-44`
 
 `log1p(-1.0) = -inf` (or a ratio exceeding 2³¹ for p ≲ 1e-8) hits
@@ -63,7 +63,7 @@ the float ratio before the int cast.
 **Gate:** unit test feeding `u ∈ {0.0, 1.0, 1-2^-24}` and
 `p ∈ {1e-9, 0.3, 1.0}`; assert n finite, ≥ 1, and monotone in u.
 
-### C2. `conditional_categorical` can select a disallowed category at u → 1 — MEDIUM — OPEN
+### C2. `conditional_categorical` can select a disallowed category at u → 1 — MEDIUM — FIXED (4a46326)
 `djinnax/distributions.py:61-64`
 
 The target is `u * w.sum()` but membership is tested against a
@@ -131,7 +131,7 @@ recorded when worked.
 *documented* behavior for each engine, so the divergence is pinned, not
 latent.
 
-### C6. Batch-wide RNG correlation at one unreachable Δt — LOW — OPEN (comment only)
+### C6. Batch-wide RNG correlation at one unreachable Δt — LOW — FIXED (996dbf4, comment)
 `djinnax/megakernel_rng.py:60-67`
 
 The pre-hash state is 32 bits with the env term XORed linearly, so
@@ -146,7 +146,7 @@ whole batch, which deserves a comment where the hash is defined.
 **Fix:** documentation comment stating the structure and its bounds.
 **Gate:** none (no behavior change); RNG batteries re-run as usual.
 
-### C7. `conditional_categorical` all-zero-weight rows undocumented — LOW — OPEN
+### C7. `conditional_categorical` all-zero-weight rows undocumented — LOW — FIXED (4a46326)
 `djinnax/distributions.py:59-64`
 
 Rows where every allowed category has zero weight fall through to
@@ -169,7 +169,7 @@ against us is impossible — the risk is the opposite**: we could be
 without the split; if the split is not DCE'd, restructure key handling
 symmetrically and re-run the ttt rows.
 
-### C9. NullEnv floor-probe accumulates into int8 with wraparound — LOW — OPEN
+### C9. NullEnv floor-probe accumulates into int8 with wraparound — LOW — FIXED (996dbf4; floor continuity rides the next GPU sweep)
 `djinnax/runtime.py:108`
 
 Harmless (the floor bench makes no correctness claim), but the "touch
@@ -323,7 +323,7 @@ timing loops.
 
 ## R-series — release readiness (Reviewer 2)
 
-### R1. Tracked `reference-engines` symlink leaks a local absolute path into every clone — HIGH — OPEN
+### R1. Tracked `reference-engines` symlink leaks a local absolute path into every clone — HIGH — FIXED (c81370b)
 Repo root. Verified: `git ls-files` includes `reference-engines`.
 
 The symlink target is an absolute path containing a local username.
@@ -339,7 +339,7 @@ usable but untracked.
 **Gate:** `git ls-files | grep reference` empty; fresh-clone simulation
 runs HOW_TO_RUN's setup block cleanly.
 
-### R2. `pip install djinnax` is broken: package module imports `benchmarks.*` at module scope — HIGH — OPEN
+### R2. `pip install djinnax` is broken: package module imports `benchmarks.*` at module scope — HIGH — FIXED (2f5293f; clean-venv wheel gate passed)
 `djinnax/megakernel_rng.py:39`; `pyproject.toml` packages only
 `["djinnax"]`. Verified.
 
@@ -352,7 +352,7 @@ root, where `benchmarks/` happens to be importable.
 **Gate:** build a wheel, install into a clean venv, `import
 djinnax.megakernel_rng` — wired into CI as a smoke test (see R5).
 
-### R3. `refs.py` stubs `tqdm`/`huggingface_hub`/`esquilax` process-wide even when genuinely installed, as a library-import side effect — HIGH — OPEN
+### R3. `refs.py` stubs `tqdm`/`huggingface_hub`/`esquilax` process-wide even when genuinely installed, as a library-import side effect — HIGH — FIXED (2f5293f; stub-only-if-missing + side-effect imports dropped)
 `djinnax/refs.py:38-46`; imported at module scope by `megakernel.py:31`,
 `megakernel_rng.py:27`, `soko_ref_generator.py:7`.
 
@@ -369,7 +369,7 @@ soko_ref_generator (which genuinely need reference paths).
 djinnax.megakernel; import tqdm; tqdm.tqdm` is the real one); full CPU
 suite.
 
-### R4. Package exports nothing; no usage snippet; step signatures undocumented — MEDIUM — OPEN
+### R4. Package exports nothing; no usage snippet; step signatures undocumented — MEDIUM — FIXED (c5092cd; README snippet executed verbatim in tests)
 `djinnax/__init__.py`
 
 `import djinnax; djinnax.Djinn2048` fails; step signatures diverge
@@ -380,7 +380,7 @@ helpers; add a 5-line init/step example to the README; one sentence on
 the per-env signature convention.
 **Gate:** the example in the README is executed verbatim in a test.
 
-### R5. CI never runs on the development branch, pins no jax, and can't catch packaging breaks — MEDIUM — OPEN
+### R5. CI never runs on the development branch, pins no jax, and can't catch packaging breaks — MEDIUM — FIXED (wheel-import smoke job added)
 `.github/workflows/ci.yml:3`
 
 **Fix:** add `Development` to push branches; floor-pin jax to the tested
@@ -388,7 +388,7 @@ line; add a build-wheel → clean-install → import smoke job (catches R2
 class permanently).
 **Gate:** CI green on Development with the new jobs.
 
-### R6. Docs mandate a test-gate table whose named tests don't exist in this repo — MEDIUM — OPEN
+### R6. Docs mandate a test-gate table whose named tests don't exist in this repo — MEDIUM — FIXED (e248552; training-tier rows scoped explicitly)
 `WRITING_FAST_ENVS.md:179-183` (echoed in AGENTS.md/CLAUDE.md,
 PORTING_PLAYBOOK.md)
 
@@ -401,7 +401,7 @@ reader following the law finds the law's own repo out of compliance.
 with the in-repo equivalents named for the rest.
 **Gate:** doc-only; re-read pass.
 
-### R7. Informal/internal references survive in live public docs — MEDIUM — OPEN
+### R7. Informal/internal references survive in live public docs — MEDIUM — FIXED (grep gate: only disclaimed historical hits remain)
 `WRITING_FAST_ENVS.md:79,144` (unexplained internal project name),
 `CLAUDE.md:1`/`AGENTS.md:1` (pre-rename "engine-bench" titles),
 `tests/conftest.py:1`, `benchmarks/bench_head_to_head.py:18` (stale
@@ -415,24 +415,24 @@ disclaimer pattern for anything historical.
 **Gate:** grep sweep for the pre-rename name and internal identifiers
 returns only intentional historical-context hits.
 
-### R8. game2048_lut docstring claims a third LUT that doesn't exist — LOW — OPEN
+### R8. game2048_lut docstring claims a third LUT that doesn't exist — LOW — OPEN (resolves with P5)
 `djinnax/game2048_lut.py:15-16` — resolves with P5 (build it), which
 makes the docstring true. If P5 measures null, fix the docstring
 instead.
 
-### R9. Stale superseded numbers in two files — LOW — OPEN
+### R9. Stale superseded numbers in two files — LOW — FIXED
 `checks/check_megakernel.py:7` ("275×" vs official 237×),
 `LEARNINGS.md:280` + `docs/HARDENING_ROUND2_PLAN.md:10` ("16/16 GPU,
 11+5 CPU" vs the current 19-test suite). **Fix:** update or tag as
 historical. **Gate:** grep sweep.
 
-### R10. pyproject metadata: marketing in description, version floors contradict HOW_TO_RUN, no repo URL/classifiers — LOW — OPEN
+### R10. pyproject metadata: marketing in description, version floors contradict HOW_TO_RUN, no repo URL/classifiers — LOW — FIXED (c5092cd; wheel metadata inspected)
 **Fix:** neutral description; align `requires-python`/jax floor with
 what is actually tested (HOW_TO_RUN says Python 3.12 / JAX 0.10.x);
 add Repository URL + classifiers + license-files.
 **Gate:** `pip install` of the built wheel shows clean metadata.
 
-### R11. `.gitignore` missing `.pytest_cache/`, `.benchmarks/`; empty `.benchmarks/` in tree — LOW — OPEN
+### R11. `.gitignore` missing `.pytest_cache/`, `.benchmarks/`; empty `.benchmarks/` in tree — LOW — FIXED (c81370b)
 **Fix:** add both, delete the empty dir. **Gate:** `git status` clean
 after a test run.
 
