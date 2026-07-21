@@ -503,3 +503,27 @@ not silently dropped.
 
 Headline table only updates from Batch C results that clear their
 intervals; anything within noise stays at current official numbers.
+
+## Batch C outcome summary (2026-07-21)
+
+| item | verdict | numbers (n=5 medians) |
+|---|---|---|
+| P1 orient-select kernel | CONFIRMED, adopted | 1.41-1.57× |
+| P2 direct reset spawn | confirmed at floor | 0.98/1.04/1.18× |
+| P3 rank-pick spawn | CONFIRMED, adopted | 1.05/1.10/1.21× |
+| P4 orient gather | confirmed small, adopted | ~1.01/1.01/1.05× |
+| P5 changed-LUT probe | KILLED | 0.82-0.88× regression |
+| P6 soko carried count | NULL | 0.99-1.02× |
+| P7 shift reward | landed (bit-identical) | rides along |
+| P8 single-fmix RNG | NULL (battery passed) | 1.00-1.03× |
+| P9, P10 | doc disclosures landed | — |
+
+**Headline-table refresh: ATTEMPTED AND DISCARDED (contention).** The
+end-of-batch official sweep ran into host-side GPU time-slicing that
+hits the persistent megakernel disproportionately (reference rows
+stable 26-31M across runs; megakernel 508/508/615/3595/641M at
+B=65536 — one clean run among five). The single clean run's megakernel
+ratio, 138.6× vs the standing official 91×, matches the P1 sweep's
+1.57× almost exactly, but one run is not an official number. README
+keeps the standing table; refresh re-runs in a verified quiet window.
+Final tree: 28/28 GPU suite green.
