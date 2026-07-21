@@ -99,9 +99,12 @@ class DjinnTicTacToe:
             state.legal_action_mask, action[:, None].astype(jnp.int32), axis=-1
         )[:, 0] & ~was_terminated
 
-        # --- apply move (masked off for already-terminated envs) ---
+        # --- apply move (masked off for already-terminated envs). pgx
+        # applies an ILLEGAL move too — the tile is placed (overwriting
+        # the occupied cell) and the game then terminates with the
+        # illegal-actor penalty; parity requires doing the same. ---
         onehot = jax.nn.one_hot(action, 9, dtype=jnp.bool_)   # (B, 9)
-        place = onehot & ~was_terminated[:, None] & ~illegal[:, None]
+        place = onehot & ~was_terminated[:, None]
         new_board = jnp.where(place, state.color[:, None], state.board).astype(jnp.int8)
 
         if self._win_lut:
@@ -133,9 +136,11 @@ class DjinnTicTacToe:
         # state.current_player and color state.color.
         flip = (state.current_player != state.color)[:, None]
         win_rewards = jnp.where(flip, win_rewards[:, ::-1], win_rewards)
+        # pgx convention: the illegal actor loses (-1) and the opponent
+        # WINS (+1) — not a neutral 0 (off-path parity gate, review C3).
         illegal_rewards = jnp.where(
             jnp.arange(2, dtype=jnp.int8)[None, :] == state.current_player[:, None],
-            -1.0, 0.0,
+            -1.0, 1.0,
         )
         rewards = jnp.where(illegal[:, None], illegal_rewards, win_rewards)
         rewards = jnp.where(was_terminated[:, None], 0.0, rewards).astype(jnp.float32)

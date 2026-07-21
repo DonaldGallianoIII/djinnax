@@ -23,7 +23,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from djinnax.ttt import DjinnTicTacToe
-from djinnax.game2048 import Djinn2048, move_all_directions
+from djinnax.game2048 import Djinn2048, _move_left, move_all_directions
 from djinnax.game2048_lut import move_left_lut, make_game2048_lut
 
 
@@ -228,6 +228,115 @@ def check_sokoban(n_episodes: int = 40, seed: int = 4) -> None:
     print(f"Sokoban parity OK — {n_episodes} episodes, grids/agent/rewards/done identical")
 
 
+
+def check_ttt_offpath(n_games: int = 60, seed: int = 5) -> None:
+    """External review R1 finding C3: gate the paths the ttt docstring
+    claims pgx parity for but the main replay never reaches — the
+    illegal-action loss and the step-past-terminated freeze."""
+    import pgx
+
+    env = pgx.make("tic_tac_toe")
+    ours = DjinnTicTacToe()
+    rng = np.random.default_rng(seed)
+    p_init, p_step = jax.jit(env.init), jax.jit(env.step)
+    B = 1
+    d_init = jax.jit(lambda k: ours.init(k, B))
+    d_step = jax.jit(ours.step)
+
+    def assert_match(ps, ds, tag):
+        assert np.array_equal(np.asarray(ps._x.board), np.asarray(ds.board[0])), f"{tag}: board"
+        assert bool(ps.terminated) == bool(ds.terminated[0]), f"{tag}: terminated"
+        assert np.allclose(np.asarray(ps.rewards), np.asarray(ds.rewards[0])), (
+            f"{tag}: rewards {ps.rewards} vs {ds.rewards[0]}"
+        )
+        assert np.array_equal(
+            np.asarray(ps.legal_action_mask), np.asarray(ds.legal_action_mask[0])
+        ), f"{tag}: mask"
+
+    n_illegal = n_pastterm = 0
+    for g in range(n_games):
+        key = jax.random.PRNGKey(3000 + g)
+        ps, ds = p_init(key), d_init(key)
+        for _ in range(int(rng.integers(1, 4))):          # short legal prefix
+            a = int(rng.choice(np.flatnonzero(np.asarray(ps.legal_action_mask))))
+            ps = p_step(ps, jnp.int32(a), key)
+            ds = d_step(ds, jnp.full((B,), a, dtype=jnp.int32), key)
+        if bool(ps.terminated):
+            continue
+        occupied = np.flatnonzero(~np.asarray(ps.legal_action_mask))
+        if len(occupied) == 0:
+            continue
+        a = int(rng.choice(occupied))                     # deliberate illegal
+        ps = p_step(ps, jnp.int32(a), key)
+        ds = d_step(ds, jnp.full((B,), a, dtype=jnp.int32), key)
+        assert_match(ps, ds, f"game {g}: illegal step")
+        assert bool(ds.terminated[0]), f"game {g}: illegal move must terminate"
+        n_illegal += 1
+        a2 = int(rng.integers(0, 9))                      # step past terminal
+        ps = p_step(ps, jnp.int32(a2), key)
+        ds = d_step(ds, jnp.full((B,), a2, dtype=jnp.int32), key)
+        assert_match(ps, ds, f"game {g}: step past terminal")
+        n_pastterm += 1
+    assert n_illegal >= 20 and n_pastterm >= 20, (n_illegal, n_pastterm)
+    print(f"TTT off-path parity OK — {n_illegal} illegal-step cases, "
+          f"{n_pastterm} step-past-terminal cases identical to pgx")
+
+
+def check_2048_reset(n_seeds: int = 1024) -> None:
+    """External review R1 finding C4: episode-START parity. The move and
+    in-play spawn gates never asserted that both engines begin (and
+    in-step reset) with the same board population; a mismatch would skew
+    episode length and therefore the head-to-head ratio."""
+    from jumanji.environments.logic.game_2048 import Game2048
+
+    env = Game2048(board_size=4)
+    ours = Djinn2048()
+
+    j_reset = jax.jit(env.reset)
+    d_init = jax.jit(lambda k: ours.init(k, 1))
+
+    j_counts, j_vals, d_counts, d_vals = [], [], [], []
+    for i in range(n_seeds):
+        js, _ = j_reset(jax.random.PRNGKey(i))
+        jb = np.asarray(js.board)
+        j_counts.append(int((jb != 0).sum()))
+        j_vals.extend(jb[jb != 0].tolist())
+        db = np.asarray(d_init(jax.random.PRNGKey(i)).board[0])
+        d_counts.append(int((db != 0).sum()))
+        d_vals.extend(db[db != 0].tolist())
+
+    assert set(j_counts) == set(d_counts), (
+        f"reset tile count differs: reference {sorted(set(j_counts))} "
+        f"vs djinn {sorted(set(d_counts))}"
+    )
+    j_vals, d_vals = np.asarray(j_vals), np.asarray(d_vals)
+    assert set(np.unique(j_vals)) == set(np.unique(d_vals)), (j_vals, d_vals)
+    for v in np.unique(j_vals):
+        jp, dp = (j_vals == v).mean(), (d_vals == v).mean()
+        assert abs(jp - dp) < 0.05, f"reset value {v}: P_ref={jp:.3f} P_djinn={dp:.3f}"
+    print(f"2048 reset parity OK — {n_seeds} seeds: tile count {sorted(set(j_counts))}, "
+          f"value distribution matched within 0.05")
+
+
+def check_2048_exp15_divergence() -> None:
+    """External review R1 finding C5: pin the ONE known divergence between
+    the LUT and branchless engines. The LUT's 4-bit row code cannot
+    represent exponent 16, so a 15+15 merge saturates at 15 while the
+    branchless engine produces 16. Unreachable from 2/4 spawns in real
+    play; asserted here so the divergence is documented behavior, not a
+    latent surprise, and so the variant-equivalence claim is scoped."""
+    board = jnp.zeros((1, 4, 4), dtype=jnp.int8).at[0, 0, 0].set(15).at[0, 0, 1].set(15)
+    moved_b, reward_b = _move_left(board)
+    moved_l, reward_l = move_left_lut(board)
+    assert int(moved_b[0, 0, 0]) == 16, moved_b
+    assert int(moved_l[0, 0, 0]) == 15, moved_l  # saturated: documented limit
+    assert float(reward_b[0]) == 2.0 ** 16
+    # below exponent 15 the engines are bit-identical (existing gates);
+    # this is the only divergent input class.
+    print("2048 exp-15 divergence pinned — LUT saturates at 15 (4-bit code), "
+          "branchless produces 16; unreachable in play, documented in game2048_lut")
+
+
 if __name__ == "__main__":
     check_ttt(win_lut=False)
     check_ttt(win_lut=True)
@@ -236,4 +345,7 @@ if __name__ == "__main__":
     check_2048_variants_step_equivalence()
     check_2048_spawn()
     check_sokoban()
+    check_ttt_offpath()
+    check_2048_reset()
+    check_2048_exp15_divergence()
     print("ALL PARITY CHECKS PASSED")

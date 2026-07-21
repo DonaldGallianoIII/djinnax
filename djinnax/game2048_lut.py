@@ -9,8 +9,12 @@ _orient; everything else (spawn, analytic reset mask, state, semantics)
 comes from game2048, so parity gates cover this variant identically.
 
 Saturation note: exponents cap at 15 (nibble limit) — merging two 15s
-yields 15, diverging from jumanji's unbounded int32 ONLY beyond the 32,768
-tile, which is unreachable in any realistic (or random) play.
+yields 15 (reward 2^15), where the branchless engine and megakernel
+produce 16 (reward 2^16), diverging from them and from jumanji's
+unbounded int32 ONLY beyond the 32,768 tile, unreachable in any
+realistic (or random) play. The variant-equivalence "bit-identical"
+claim is therefore scoped to boards without a mergeable 15-pair; the
+divergence itself is pinned by check_2048_exp15_divergence.
 
 LUT footprint: moved 128 KB (uint16) + reward 256 KB (f32) + changed 8 KB
 (bool) — sits in L2 on any modern GPU.

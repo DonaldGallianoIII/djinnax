@@ -51,3 +51,17 @@ def test_2048_spawn_distribution():
 @requires_refs
 def test_sokoban_parity():
     cp.check_sokoban(n_episodes=20)
+
+
+@requires_refs
+def test_ttt_offpath_parity():
+    cp.check_ttt_offpath(n_games=60)
+
+
+@requires_refs
+def test_2048_reset_parity():
+    cp.check_2048_reset(n_seeds=512)
+
+
+def test_2048_exp15_divergence_pinned():
+    cp.check_2048_exp15_divergence()
