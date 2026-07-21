@@ -79,7 +79,7 @@ construction, in the same float stream.
 `1 - k·2^-24`; assert the returned index is always allowed. Existing
 distribution-parity tests re-run.
 
-### C3. TTT parity gate never tests the paths its docstring claims parity for — MEDIUM — OPEN
+### C3. TTT parity gate never tests the paths its docstring claims parity for — MEDIUM — FIXED (d0d826b) — **gate found a real divergence**: pgx applies the illegal placement and rewards the opponent +1; engine corrected, 60+60 off-path cases now identical
 `checks/check_parity.py:49-70` vs `djinnax/ttt.py:98-141`
 
 `check_ttt` always plays a legal action and stops at the first terminal
@@ -92,7 +92,7 @@ step once past termination, asserting rewards/state against pgx.
 **Gate:** the new cases themselves (must be shown to fail when our
 reward table is perturbed, then pass unperturbed).
 
-### C4. No gate on episode-*start* parity with the 2048 reference — MEDIUM (PLAUSIBLE) — OPEN
+### C4. No gate on episode-*start* parity with the 2048 reference — MEDIUM (PLAUSIBLE) — CLOSED CLEAN (d0d826b): 512-seed gate — reference resets with exactly 1 tile, value distribution matches within 0.05; no bench impact
 `djinnax/game2048.py:150-161`, `checks/check_parity.py`
 
 Our `init` and in-step reset spawn exactly one tile. The reference's
@@ -109,7 +109,7 @@ population (tile count and value histogram over N seeds) against
 must be re-run after aligning reset semantics, and the change disclosed
 in RESULTS_HISTORY.
 
-### C5. LUT saturates merges at exponent 15; the variant-equivalence gate never reaches the divergent region — LOW — OPEN
+### C5. LUT saturates merges at exponent 15; the variant-equivalence gate never reaches the divergent region — LOW — FIXED (d0d826b): divergence pinned by test, bit-identical claim scoped in docstring
 `djinnax/game2048_lut.py:34-35` vs `djinnax/game2048.py:57-59`
 
 The v3 LUT caps merged exponents at 15 while the branchless engine and
@@ -154,7 +154,7 @@ index 0; the docstring's "nothing allowed" caveat doesn't cover this
 case. **Fix:** extend the docstring (or guard on `total > 0`) alongside
 C2. **Gate:** covered by C2's test.
 
-### C8. pgx TTT bench side may be charged O(B) RNG work the djinn side doesn't pay — LOW (PLAUSIBLE) — OPEN
+### C8. pgx TTT bench side may be charged O(B) RNG work the djinn side doesn't pay — LOW (PLAUSIBLE) — NO CHANGE NEEDED: compiled HLO of the bench's pgx step contains zero RNG ops (unused split is dead-code-eliminated)
 `benchmarks/bench_head_to_head.py:76`
 
 The reference side derives B split keys per step that a deterministic
