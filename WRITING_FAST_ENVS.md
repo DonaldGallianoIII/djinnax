@@ -103,6 +103,17 @@ batch-in/batch-out.
   of `where` updates, left to right — each element touched once.
 - *First-empty / first-match*: `argmax` of the boolean + `any` guard.
 
+**Rung 1b — collapse stochastic processes (co-equal with rung 1).**
+Any retry-until-success / reroll-until-valid / draw-until-drop loop with
+no observable intermediates collapses to ONE draw from its closed-form
+distribution (`djinnax/distributions.py`): geometric inverse-CDF for
+retries (`N = 1 + floor(log(1-U)/log(1-p))`), renormalized conditional
+for rerolls, alias tables for weighted picks. Exact — full variance
+preserved, only the iteration deleted. Measured on 2048's spawn: the
+faithful rejection-loop port is **47-75× slower on the whole game** than
+the collapsed draw (distribution-parity-verified identical). Legality
+test and the process→distribution table: PORTING_PLAYBOOK step 1.5.
+
 **Rung 2 — delete work analytically.** If a state is structurally simple,
 derive its properties in closed form instead of simulating. (A fresh
 board with one tile: its legal mask is four coordinate comparisons, not
@@ -170,6 +181,7 @@ launch/bandwidth floor. See `pallas_lab.py` + LEARNINGS for evidence.
 | Trace guard | `chex.assert_max_traces(step, n=1)` — no silent recompiles | test_conformance.py |
 | Serialization | state survives to_bytes/from_bytes with dtypes + behavior | test_serialization.py |
 | Sampler uniformity | any custom sampler is distribution-correct | floor_bench.py |
+| Distribution parity | collapsed stochastic sites ≡ the naive loop statistically | tests/test_distributions.py, benchmarks/spawn_collapse_ab.py |
 
 Write the parity harness BEFORE optimizing. Every ladder rung re-runs it.
 
@@ -190,6 +202,7 @@ Write the parity harness BEFORE optimizing. Every ladder rung re-runs it.
 | anti-pattern | symptom | fix | measured cost |
 |---|---|---|---|
 | `while_loop` in step | batch runs to worst case | unroll / rank-scatter / LUT | 15-25× (2048) |
+| retry/reroll RNG loop in step | breaks fusion + batch-max tail every step | collapse to closed-form draw (`distributions.py`) | **47-75×** (2048 spawn) |
 | data-dep `switch`/`cond` | all branches execute | select-by-index over unrolled variants | part of above |
 | per-direction copies of logic | 4× code, 4× bugs | orientation canonicalization | correctness |
 | python `if` on traced val | recompile every call | `where`; trace guard catches it | seconds/step |
