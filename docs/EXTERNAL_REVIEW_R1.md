@@ -309,7 +309,13 @@ and immune to the pow-precision issue pallas_lab.py documents.
 **Gate:** move-parity (rewards asserted there) + it rides along with
 whichever P2-P4 sweep runs first.
 
-### P8. Five double-fmix32 hashes per env-step may be over-provisioned — LOW (PLAUSIBLE) — OPEN
+### P8. Five double-fmix32 hashes per env-step may be over-provisioned — LOW (PLAUSIBLE) — NULL (double-fmix kept)
+Single-fmix PASSES the full quality battery (means, flatness,
+cross-salt/step/env/seed correlations at 2^20 draws), so speed decided:
+**1.00-1.03× at every B across all 5 runs — null**
+(data/p8_rng_rounds_ab.jsonl). After P1, RNG is no longer a meaningful
+ALU fraction. Double-fmix stays (stronger mixing at no measured cost);
+`rng_rounds` parameter kept for the receipt.
 `djinnax/megakernel_rng.py:60-73`
 
 A single-fmix variant, or one base hash per (env, t) with a cheap

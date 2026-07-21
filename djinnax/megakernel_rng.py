@@ -54,7 +54,7 @@ _SALTS = tuple(np.uint32(s) for s in
                (0x9E3779B1, 0x85EBCA77, 0xC2B2AE3D, 0x27D4EB2F, 0x165667B1))
 
 
-def hash_uniform(env_id, t, j, seed):
+def hash_uniform(env_id, t, j, seed, rounds=2):
     """f32 uniform in [0, 1) from counters. env_id (B,) uint32; t traced
     int32 step; j static salt index; seed uint32 scalar.
 
@@ -72,20 +72,21 @@ def hash_uniform(env_id, t, j, seed):
     h = env_id * jnp.uint32(0x9E3779B1)
     h = h ^ (t.astype(jnp.uint32) * jnp.uint32(0x9E3779B9) + _SALTS[j])
     h = h ^ seed
-    h = _fmix32(_fmix32(h))
+    for _ in range(rounds):                     # static; unrolls
+        h = _fmix32(h)
     return (h >> jnp.uint32(8)).astype(jnp.float32) * jnp.float32(1.0 / (1 << 24))
 
 
-def step_rng(lanes, mask, score, env_id, t, seed, step=None):
+def step_rng(lanes, mask, score, env_id, t, seed, step=None, rng_rounds=2):
     """One step with in-register RNG. Same function in-kernel and in XLA."""
-    u = tuple(hash_uniform(env_id, t, j, seed) for j in range(N_UNI))
+    u = tuple(hash_uniform(env_id, t, j, seed, rng_rounds) for j in range(N_UNI))
     return (step or step_lanes)(lanes, mask, score, u)
 
 
 # --- Mode B megakernel -------------------------------------------------------
 
 
-def _make_kernel_rng(n_steps: int, block: int = BLOCK, step=None):
+def _make_kernel_rng(n_steps: int, block: int = BLOCK, step=None, rng_rounds=2):
     def kernel(board_ref, score_ref, seed_ref, out_board_ref, out_score_ref, out_done_ref):
         pid = pl.program_id(0)
         env_id = (pid * block + jnp.arange(block)).astype(jnp.uint32)
@@ -98,7 +99,7 @@ def _make_kernel_rng(n_steps: int, block: int = BLOCK, step=None):
 
         def body(t, carry):
             lanes, mask, score, done = carry
-            return step_rng(lanes, mask, score, env_id, t + t_offset, seed, step)
+            return step_rng(lanes, mask, score, env_id, t + t_offset, seed, step, rng_rounds)
 
         lanes, mask, score, done = lax.fori_loop(0, n_steps, body, (lanes, mask, score, done))
         for i in range(16):
@@ -110,7 +111,7 @@ def _make_kernel_rng(n_steps: int, block: int = BLOCK, step=None):
 
 def run_megakernel_rng(board: jax.Array, seed: jax.Array, score: jax.Array | None = None,
                        n_steps: int = N_STEPS, block: int = BLOCK,
-                       compiler_params=None, step_fn=None):
+                       compiler_params=None, step_fn=None, rng_rounds=2):
     """board (B, 16) int8; seed (2,) uint32 = [seed, t_offset]; score (B,)
     f32 carried across chained launches (mask is recomputed from the board
     at entry — exact, because the analytic reset mask provably equals the
@@ -126,7 +127,7 @@ def run_megakernel_rng(board: jax.Array, seed: jax.Array, score: jax.Array | Non
         score = jnp.zeros((Bn,), dtype=jnp.float32)
     params = {"compiler_params": compiler_params} if compiler_params else _TRITON
     return pl.pallas_call(
-        _make_kernel_rng(n_steps, block, step_fn),
+        _make_kernel_rng(n_steps, block, step_fn, rng_rounds),
         out_shape=(
             jax.ShapeDtypeStruct((Bn, 16), jnp.int8),
             jax.ShapeDtypeStruct((Bn,), jnp.float32),

@@ -279,6 +279,13 @@ disclosed; (c) always ask what else the machine was doing.
   tests self-skip on CPU (current counts: 26 GPU / 21+5skip CPU) — the chain-link, analytic-mask, and RNG batteries gate on any
   machine; kernel tests self-skip without a GPU.
 
+**Single-fmix RNG NULL (2026-07-21).** Halving the counter-hash
+finalizer passes the full quality battery but measures 1.00-1.03x
+(n=5 interleaved, data/p8_rng_rounds_ab.jsonl) — after the orient-select
+kernel cut, RNG is not a meaningful ALU fraction. Double-fmix kept: when
+a cheaper variant is statistically indistinguishable AND not faster,
+keep the stronger one.
+
 **Sokoban carried-count NULL (2026-07-21).** Carrying n_on_target in
 state instead of recounting (B,100) per step: 0.99-1.02x at every B
 (n=5 interleaved, data/p6_soko_carry_ab.jsonl) — the reduction fuses
