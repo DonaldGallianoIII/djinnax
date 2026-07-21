@@ -276,7 +276,7 @@ disclosed; (c) always ask what else the machine was doing.
   ones — engine-dependent, defaults kept. Verdict quality scales with
   measurement quality: yesterday "unresolvable", today resolved.
 - **CI contract established**: pytest suite runs fully on GPU, kernel
-  tests self-skip on CPU (current counts: 19 GPU / 14+5skip CPU) — the chain-link, analytic-mask, and RNG batteries gate on any
+  tests self-skip on CPU (current counts: 23 GPU / 18+5skip CPU) — the chain-link, analytic-mask, and RNG batteries gate on any
   machine; kernel tests self-skip without a GPU.
 
 **collapse(process) measured (2026-07-21).** 2048's spawn ported as the

@@ -58,7 +58,7 @@ HOW_TO_RUN.md).
   bit-verified against an XLA reference running the same step function).
 - `checks/` + `tests/` — the correctness
   gates. **No number in this repo was measured before its engine passed
-  parity.** `pytest tests/` runs 19 tests on GPU, 14 (+5 skips) on CPU;
+  parity.** `pytest tests/` runs 23 tests on GPU, 18 (+5 skips) on CPU;
   reference-parity tests skip if pgx/jumanji aren't set up (HOW_TO_RUN).
 - `benchmarks/` — the
   measurement harness (interleaved pairwise, frozen-code sweeps,

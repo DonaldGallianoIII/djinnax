@@ -43,7 +43,7 @@ git clone --depth 1 https://github.com/instadeepai/jumanji.git
 clones.
 
 Without the clones, the 5 reference-parity tests **skip** with a
-pointer here (fresh clone: 9 pass + 10 skip on CPU). CI sets
+pointer here (fresh clone: 13 pass + 10 skip on CPU). CI sets
 `DJINNAX_REQUIRE_REFS=1` so a missing reference fails loudly there —
 set it locally too if you want the strict behavior.
 
@@ -53,7 +53,7 @@ set it locally too if you want the strict behavior.
 |---|---|---|
 | `python checks/check_parity.py` | all engines ≡ pgx/jumanji move-for-move | no (slow-ok on CPU) |
 | `python checks/check_megakernel.py` | megakernel battery: chain link, determinism, chaining, adversarial, RNG | yes |
-| `pytest tests/ -q` | the same gates, CI-shaped (CPU: 14 pass + 5 skip) | optional |
+| `pytest tests/ -q` | the same gates, CI-shaped (CPU: 18 pass + 5 skip) | optional |
 | `python benchmarks/bench_head_to_head.py` | one bench run, all engines, within-run ratios | yes |
 | `python benchmarks/sweep_stats.py --n 5` | the OFFICIAL numbers: n fresh-process runs, median [min..max] | yes |
 | `python benchmarks/floor_bench.py` | runtime-floor probe (NullEnv) + protocol A/B | yes |
