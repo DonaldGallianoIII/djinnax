@@ -279,6 +279,13 @@ disclosed; (c) always ask what else the machine was doing.
   tests self-skip on CPU (current counts: 26 GPU / 21+5skip CPU) — the chain-link, analytic-mask, and RNG batteries gate on any
   machine; kernel tests self-skip without a GPU.
 
+**Sokoban carried-count NULL (2026-07-21).** Carrying n_on_target in
+state instead of recounting (B,100) per step: 0.99-1.02x at every B
+(n=5 interleaved, data/p6_soko_carry_ab.jsonl) — the reduction fuses
+into the step's existing grid passes. "Don't recompute what you know"
+is a perf doctrine, and here the recompute is free; simpler recount
+kept as default, flag + field kept for the receipt.
+
 **CHANGED_LUT probe KILLED (2026-07-21).** Replacing the legality
 mask's unpack-and-compare with a third 64 KB bool-LUT gather measured a
 consistent 0.82-0.88x REGRESSION at every B (n=5 interleaved,

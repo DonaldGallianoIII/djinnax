@@ -37,13 +37,23 @@ _FIXED = jnp.asarray(FIXED_LEVELS)          # (N, 10, 10) uint8
 _VARIABLE = jnp.asarray(VARIABLE_LEVELS)    # (N, 10, 10) uint8
 _AGENTS = jnp.asarray(AGENT_YX)             # (N, 2) int32
 
+# The carried on-target count (review P6) resets to 0, not to a counted
+# value — legal only because every fixture level starts with all boxes
+# off-target. Assert that property once at import so a future fixture
+# change cannot silently break the carry.
+import numpy as _np
+assert not _np.any(
+    (_np.asarray(VARIABLE_LEVELS) == BOX) & (_np.asarray(FIXED_LEVELS) == TARGET)
+), 'a fixture level starts with a box on target - carried reset-to-0 invalid'
+
 
 @flax.struct.dataclass
 class SokoState:
     fixed_grid: jax.Array     # (B, 10, 10) uint8
     variable_grid: jax.Array  # (B, 10, 10) uint8
     agent_yx: jax.Array       # (B, 2) int32
-    step_count: jax.Array     # (B,) int32
+    n_on_target: jax.Array    # (B,) int32 — carried count (review P6)
+    step_count: jax.Array     # (B,) int16
     terminated: jax.Array     # (B,) bool — done flag of the step just taken
 
 
@@ -62,6 +72,14 @@ def _count_on_target(variable, fixed):
 class DjinnSokoban:
     n_actions: int = 4
 
+    def __init__(self, carry_on_target: bool = False):
+        # Carrying n_on_target measured NULL (0.99-1.02x at every B, n=5
+        # interleaved — data/p6_soko_carry_ab.jsonl): XLA fuses the count
+        # reduction for free. Default stays the simpler recount; the flag
+        # and field remain so the receipt is reproducible. Rewards are
+        # bit-identical either way (exact jumanji replay gates both).
+        self._carry = carry_on_target
+
     def _sample_levels(self, key: jax.Array, B: int):
         idx = jax.random.randint(key, (B,), 0, N_LEVELS)
         return _FIXED[idx], _VARIABLE[idx], _AGENTS[idx]
@@ -70,7 +88,8 @@ class DjinnSokoban:
         f, v, a = self._sample_levels(key, n_envs)
         return SokoState(
             fixed_grid=f, variable_grid=v, agent_yx=a,
-            step_count=jnp.zeros((n_envs,), dtype=jnp.int32),
+            n_on_target=_count_on_target(v, f).astype(jnp.int32),
+            step_count=jnp.zeros((n_envs,), dtype=jnp.int16),
             terminated=jnp.zeros((n_envs,), dtype=jnp.bool_),
         )
 
@@ -105,7 +124,13 @@ class DjinnSokoban:
         set_agent = (cells == idx_new[:, None]) & moves[:, None]
         set_box = (cells == idx_box[:, None]) & can_push[:, None]
 
-        n_before = _count_on_target(state.variable_grid, state.fixed_grid)
+        # P6: n_before is the previous step's n_after for non-reset envs
+        # (and 0 after reset, by the fixture property asserted above) —
+        # carrying it halves the (B,100) count reductions per step.
+        if self._carry:
+            n_before = state.n_on_target
+        else:
+            n_before = _count_on_target(state.variable_grid, state.fixed_grid)
 
         new_v = jnp.where(clear_agent, EMPTY, v_flat)
         new_v = jnp.where(set_agent, AGENT, new_v)
@@ -136,7 +161,8 @@ class DjinnSokoban:
             fixed_grid=jnp.where(done[:, None, None], rf, state.fixed_grid),
             variable_grid=jnp.where(done[:, None, None], rv, new_v),
             agent_yx=jnp.where(done[:, None], ra, new_agent),
-            step_count=jnp.where(done, 0, new_count).astype(jnp.int32),
+            n_on_target=jnp.where(done, 0, n_after).astype(jnp.int32),
+            step_count=jnp.where(done, 0, new_count).astype(jnp.int16),
             terminated=done,
         )
         return new_state, reward, obs, extras

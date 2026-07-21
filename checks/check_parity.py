@@ -196,7 +196,8 @@ def check_sokoban(n_episodes: int = 40, seed: int = 4) -> None:
             fixed_grid=jnp.asarray(FIXED_LEVELS[lvl])[None],
             variable_grid=jnp.asarray(VARIABLE_LEVELS[lvl])[None],
             agent_yx=jnp.asarray(AGENT_YX[lvl])[None],
-            step_count=jnp.zeros((1,), jnp.int32),
+            n_on_target=jnp.zeros((1,), jnp.int32),   # fixture starts off-target
+            step_count=jnp.zeros((1,), jnp.int16),
             terminated=jnp.zeros((1,), jnp.bool_),
         )
         for t in range(130):

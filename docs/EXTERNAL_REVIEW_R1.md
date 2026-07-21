@@ -277,7 +277,11 @@ building it makes the docstring true (see R8).
 **Gate:** `check_2048_moves` covers `can` exactly; then interleaved A/B
 on the LUT engine rows.
 
-### P6. Sokoban recounts boxes-on-target twice per step; the count is carryable state — MEDIUM — OPEN
+### P6. Sokoban recounts boxes-on-target twice per step; the count is carryable state — MEDIUM — NULL (measured)
+Implemented, replay-gated bit-identical, swept: **0.99-1.02× at every B,
+straddling 1.0 in all 5 runs** (data/p6_soko_carry_ab.jsonl) — XLA fuses
+the count reduction for free. Default stays the simpler recount; flag +
+field kept for reproducibility.
 `djinnax/sokoban.py:108,117`
 
 `n_before` is exactly the previous step's `n_after` for non-reset envs,
@@ -324,7 +328,7 @@ under the slower protocol and the docs don't say so.
 README, and/or add a v2 djinn row so both absolutes are visible.
 **Gate:** doc change; if a v2 row is added, standard sweep.
 
-### P10. Sokoban `step_count` is int32 against house dtype doctrine; grid-form vs entity-list doc tension — LOW — OPEN
+### P10. Sokoban `step_count` is int32 against house dtype doctrine; grid-form vs entity-list doc tension — LOW — FIXED (dtype int16 landed with P6's commit; playbook note below)
 `djinnax/sokoban.py:46,73`
 
 TIME_LIMIT=120 fits int8 (int16 per doctrine). Separately,

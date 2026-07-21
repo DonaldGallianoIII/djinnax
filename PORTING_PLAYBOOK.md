@@ -61,6 +61,12 @@ between your env and the null env is what your logic costs.
 Stop when your game runs as fast as tic-tac-toe at B=65536 — the logic
 is free, and further effort belongs to the training loop, not the env.
 
+(Shipped-code note: this repo's sokoban deliberately keeps the FULL-GRID
+form, not the entity list the lesson above derives — work-parity with
+the reference implementation is what makes the head-to-head ratio
+meaningful. An entity-list rewrite is a different experiment with its
+own parity gate, tracked separately.)
+
 ## Step 4 — the gate (no exceptions)
 
 Parity vs reference · variant≡variant bit-equivalence at every rung ·
