@@ -16,8 +16,9 @@ realistic (or random) play. The variant-equivalence "bit-identical"
 claim is therefore scoped to boards without a mergeable 15-pair; the
 divergence itself is pinned by check_2048_exp15_divergence.
 
-LUT footprint: moved 128 KB (uint16) + reward 256 KB (f32) + changed 8 KB
-(bool) — sits in L2 on any modern GPU.
+LUT footprint: moved 128 KB (uint16) + reward 256 KB (f32), plus a
+64 KB changed-probe LUT that exists but is unwired (measured slower —
+see can_move_all_lut). Sits in L2 on any modern GPU.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from djinnax.game2048 import Djinn2048
+from djinnax.game2048 import Djinn2048, _orient
 
 
 def _move_row_np(row):
@@ -60,6 +61,10 @@ def _build_luts():
 _MOVED_NP, _REWARD_NP = _build_luts()
 MOVED_LUT = jnp.asarray(_MOVED_NP)      # (65536,) uint16
 REWARD_LUT = jnp.asarray(_REWARD_NP)    # (65536,) float32
+# changed[code] == True iff a left move alters the row (review P5): the
+# per-step legality mask becomes one gather + row-OR per direction
+# instead of unpacking moved codes and comparing all 16 cells.
+CHANGED_LUT = jnp.asarray(_MOVED_NP != np.arange(65536, dtype=np.uint16))
 
 _PACK = jnp.asarray([1, 16, 256, 4096], dtype=jnp.int32)      # nibble weights
 _SHIFTS = jnp.asarray([0, 4, 8, 12], dtype=jnp.uint16)
@@ -74,5 +79,24 @@ def move_left_lut(board: jax.Array):
     return moved, reward
 
 
+def can_move_all_lut(board: jax.Array):
+    """(B, 4, 4) int8 -> (4, B) bool: does direction a change the board?
+    One CHANGED_LUT gather + row-OR per direction — no unpack, no board
+    compare. Orientation glue reuses game2048's verified _orient.
+
+    NOT wired into make_game2048_lut: measured a consistent 0.82-0.88x
+    REGRESSION vs the unpack-and-compare probe on RTX 4070 (n=5
+    interleaved sweep, data/p5_canmask_ab.jsonl) — the extra table
+    gather costs more than the ALU it saves. Kept, with its exactness
+    gate (check_2048_can_lut), as the recorded null result and for
+    hardware where gather is cheaper."""
+    can = []
+    for a in range(4):
+        codes = (_orient(board, a).astype(jnp.int32) * _PACK).sum(axis=-1)
+        can.append(jnp.any(CHANGED_LUT[codes], axis=-1))
+    return jnp.stack(can)
+
+
 def make_game2048_lut() -> Djinn2048:
+    # can_move_fn deliberately NOT plugged: see can_move_all_lut docstring.
     return Djinn2048(move_left_fn=move_left_lut)

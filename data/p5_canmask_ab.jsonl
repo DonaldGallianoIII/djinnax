@@ -1,0 +1,15 @@
+{"B": 1024, "pair": "unpackcmp->changedlut", "ratio_median": 0.8110691516032964, "ratio_min": 0.608461241312958, "ratio_max": 0.8934930623396738, "steps_per_s_b": 30057201.10471967}
+{"B": 8192, "pair": "unpackcmp->changedlut", "ratio_median": 0.881971577352284, "ratio_min": 0.5585077351102766, "ratio_max": 1.9073029294448158, "steps_per_s_b": 152010406.73167914}
+{"B": 65536, "pair": "unpackcmp->changedlut", "ratio_median": 0.8758710873468634, "ratio_min": 0.8635508922770276, "ratio_max": 4.567281194834322, "steps_per_s_b": 639182881.2551525}
+{"B": 1024, "pair": "unpackcmp->changedlut", "ratio_median": 0.8240926766885304, "ratio_min": 0.8067718134413843, "ratio_max": 0.90526821016412, "steps_per_s_b": 30654007.67334821}
+{"B": 8192, "pair": "unpackcmp->changedlut", "ratio_median": 0.8173137490861374, "ratio_min": 0.5422575538279911, "ratio_max": 5.64252991838318, "steps_per_s_b": 154682094.9224908}
+{"B": 65536, "pair": "unpackcmp->changedlut", "ratio_median": 0.8769907485513346, "ratio_min": 0.8223426229415578, "ratio_max": 1.2420146106580365, "steps_per_s_b": 630613636.3736467}
+{"B": 1024, "pair": "unpackcmp->changedlut", "ratio_median": 0.8250761225773946, "ratio_min": 0.7945990547695241, "ratio_max": 0.8982622487265536, "steps_per_s_b": 30456333.700454697}
+{"B": 8192, "pair": "unpackcmp->changedlut", "ratio_median": 0.8175712823447653, "ratio_min": 0.4170491153151331, "ratio_max": 3.7251911787803453, "steps_per_s_b": 147668914.93899593}
+{"B": 65536, "pair": "unpackcmp->changedlut", "ratio_median": 0.874820528483141, "ratio_min": 0.8009110414413272, "ratio_max": 4.084005652628799, "steps_per_s_b": 632216432.8787434}
+{"B": 1024, "pair": "unpackcmp->changedlut", "ratio_median": 0.8206356212725321, "ratio_min": 0.8067827208645769, "ratio_max": 0.9053769434896897, "steps_per_s_b": 29840688.157828975}
+{"B": 8192, "pair": "unpackcmp->changedlut", "ratio_median": 0.8327239101545415, "ratio_min": 0.7220298454357328, "ratio_max": 1.1625369407317765, "steps_per_s_b": 34582340.88216138}
+{"B": 65536, "pair": "unpackcmp->changedlut", "ratio_median": 0.9581478714798919, "ratio_min": 0.7114821644161549, "ratio_max": 2.294229927675183, "steps_per_s_b": 650915065.4071832}
+{"B": 1024, "pair": "unpackcmp->changedlut", "ratio_median": 0.8147260694618506, "ratio_min": 0.8018312048997422, "ratio_max": 0.8949711147185515, "steps_per_s_b": 30842778.283472385}
+{"B": 8192, "pair": "unpackcmp->changedlut", "ratio_median": 0.8338512746644082, "ratio_min": 0.8136181902786741, "ratio_max": 3.2411021131318494, "steps_per_s_b": 154258521.31657192}
+{"B": 65536, "pair": "unpackcmp->changedlut", "ratio_median": 0.8722879278901983, "ratio_min": 0.8596952122596186, "ratio_max": 3.6734265506625894, "steps_per_s_b": 642788661.5905802}

@@ -193,10 +193,16 @@ class Djinn2048:
 
     n_actions: int = 4
 
-    def __init__(self, move_left_fn=None, spawn_fn=None, reset_spawn_fn=None):
+    def __init__(self, move_left_fn=None, spawn_fn=None, reset_spawn_fn=None,
+                 can_move_fn=None):
         self._move_left = move_left_fn or _move_left
         self._spawn = spawn_fn or _spawn
         self._reset_spawn = reset_spawn_fn or _reset_spawn_direct
+        # (4, B) legality probe; default derives it from the move pass
+        # (moved/rewards are dead outputs XLA eliminates — but the
+        # compare itself remains; a LUT engine plugs a gather instead).
+        self._can_move = can_move_fn or (
+            lambda b: move_all_directions(b, self._move_left)[2])
 
     def _reset_spawn_via_spawn(self, B: int, key: jax.Array):
         """Pre-P2 reset spawn: full spawn machinery on an all-empty board.
@@ -210,7 +216,7 @@ class Djinn2048:
         B = n_envs
         board = jnp.zeros((B, 4, 4), dtype=jnp.int8)
         board, _ = self._spawn(board, key, jnp.ones((B,), dtype=jnp.bool_))
-        _, _, can = move_all_directions(board, self._move_left)
+        can = self._can_move(board)
         return G2048State(
             board=board,
             action_mask=can.T,                                 # (B, 4)
@@ -248,7 +254,7 @@ class Djinn2048:
         k_spawn, k_reset = jax.random.split(key)
         new_board, _ = self._spawn(new_board, k_spawn, was_legal)
 
-        _, _, can = move_all_directions(new_board, self._move_left)  # next mask
+        can = self._can_move(new_board)                        # next mask
         mask = can.T                                           # (B, 4)
         done = ~jnp.any(mask, axis=-1)
 

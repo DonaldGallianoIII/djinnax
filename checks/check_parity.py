@@ -337,6 +337,27 @@ def check_2048_exp15_divergence() -> None:
           "branchless produces 16; unreachable in play, documented in game2048_lut")
 
 
+
+def check_2048_can_lut(n_boards: int = 4096, seed: int = 9) -> None:
+    """Review P5: CHANGED_LUT legality probe ≡ the unpack-and-compare
+    form, over the FULL exponent range 0-15 (including the saturated
+    region, where both derive from the same saturating MOVED_LUT)."""
+    from djinnax.game2048 import move_all_directions
+    from djinnax.game2048_lut import can_move_all_lut, move_left_lut
+
+    key = jax.random.PRNGKey(seed)
+    boards = jax.random.randint(key, (n_boards, 4, 4), 0, 16, dtype=jnp.int32)
+    # bias in plenty of zeros so some boards are actually movable/blocked
+    kz = jax.random.PRNGKey(seed + 1)
+    zmask = jax.random.uniform(kz, (n_boards, 4, 4)) < 0.4
+    boards = jnp.where(zmask, 0, boards).astype(jnp.int8)
+    fast = can_move_all_lut(boards)
+    slow = move_all_directions(boards, move_left_lut)[2]
+    assert jnp.array_equal(fast, slow), "can-mask divergence"
+    print(f"2048 can-LUT OK — {n_boards} full-range boards x 4 directions, "
+          f"gather+OR probe ≡ unpack-and-compare")
+
+
 if __name__ == "__main__":
     check_ttt(win_lut=False)
     check_ttt(win_lut=True)
@@ -348,4 +369,5 @@ if __name__ == "__main__":
     check_ttt_offpath()
     check_2048_reset()
     check_2048_exp15_divergence()
+    check_2048_can_lut()
     print("ALL PARITY CHECKS PASSED")

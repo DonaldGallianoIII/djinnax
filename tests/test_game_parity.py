@@ -65,3 +65,7 @@ def test_2048_reset_parity():
 
 def test_2048_exp15_divergence_pinned():
     cp.check_2048_exp15_divergence()
+
+
+def test_2048_can_lut_probe():
+    cp.check_2048_can_lut(n_boards=2048)

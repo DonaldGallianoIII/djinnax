@@ -279,6 +279,14 @@ disclosed; (c) always ask what else the machine was doing.
   tests self-skip on CPU (current counts: 26 GPU / 21+5skip CPU) — the chain-link, analytic-mask, and RNG batteries gate on any
   machine; kernel tests self-skip without a GPU.
 
+**CHANGED_LUT probe KILLED (2026-07-21).** Replacing the legality
+mask's unpack-and-compare with a third 64 KB bool-LUT gather measured a
+consistent 0.82-0.88x REGRESSION at every B (n=5 interleaved,
+data/p5_canmask_ab.jsonl): on RTX 4070 the extra gather costs more than
+the unpack ALU it deletes. Rule reinforced: LUT-ify *logic*, not
+*comparisons already fused next to an existing gather*. Code + exactness
+gate kept unwired as the receipt.
+
 **collapse(process) measured (2026-07-21).** 2048's spawn ported as the
 reference's rejection loop (random cell, retry if occupied) vs the
 collapsed conditional draw — distribution-parity-verified identical, then

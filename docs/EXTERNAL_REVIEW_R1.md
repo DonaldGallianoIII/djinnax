@@ -257,7 +257,13 @@ hence PLAUSIBLE; the measurement decides.
 **Gate:** move-parity check + interleaved A/B at B ∈ {8192, 65536}
 where the intermediate is 4-8 MB.
 
-### P5. Missing `CHANGED_LUT` makes the every-step can-move check unpack full boards — MEDIUM — OPEN
+### P5. Missing `CHANGED_LUT` makes the every-step can-move check unpack full boards — MEDIUM — KILLED (measured regression)
+Built, gated exact (check_2048_can_lut, 4096 full-range boards), swept:
+**0.82×/0.83×/0.88× at B=1024/8192/65536 — consistent REGRESSION across
+all 5 runs** (data/p5_canmask_ab.jsonl). The extra table gather costs
+more than the unpack ALU it saves on this hardware. Probe + gate kept
+unwired as the null-result receipt; R8's docstring claim now true
+(the LUT exists) and annotated honestly.
 `djinnax/game2048.py:98` + `djinnax/game2048_lut.py`
 
 The per-step legality mask runs `move_all_directions` on the post-move
@@ -433,7 +439,7 @@ disclaimer pattern for anything historical.
 **Gate:** grep sweep for the pre-rename name and internal identifiers
 returns only intentional historical-context hits.
 
-### R8. game2048_lut docstring claims a third LUT that doesn't exist — LOW — OPEN (resolves with P5)
+### R8. game2048_lut docstring claims a third LUT that doesn't exist — LOW — FIXED (with P5: the LUT now exists, docstring states it is unwired and why)
 `djinnax/game2048_lut.py:15-16` — resolves with P5 (build it), which
 makes the docstring true. If P5 measures null, fix the docstring
 instead.
