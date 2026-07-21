@@ -56,7 +56,19 @@ _SALTS = tuple(np.uint32(s) for s in
 
 def hash_uniform(env_id, t, j, seed):
     """f32 uniform in [0, 1) from counters. env_id (B,) uint32; t traced
-    int32 step; j static salt index; seed uint32 scalar."""
+    int32 step; j static salt index; seed uint32 scalar.
+
+    Structural caveat (known, bounded): the pre-hash state is 32 bits
+    with the env term mixed in linearly, so (a) distinct (env, t) pairs
+    birthday-collide into exact duplicate uniforms at ~2^11 per salt per
+    2^22 draws at B=65536, and (b) for each salt pair (j, j') there is
+    exactly one step offset dt = (salt_j' - salt_j) * K2^-1 mod 2^32 at
+    which salt j's uniforms at step t equal salt j''s at t+dt for the
+    ENTIRE batch at once — a correlated, batch-wide event, not a per-env
+    one. Both live far outside reachable step ranges and are invisible
+    to the distribution batteries at tested scales; acceptable for game
+    randomness, NOT for cryptographic or scientific-sampling use. A
+    64-bit pre-hash state would remove both if ever needed."""
     h = env_id * jnp.uint32(0x9E3779B1)
     h = h ^ (t.astype(jnp.uint32) * jnp.uint32(0x9E3779B9) + _SALTS[j])
     h = h ^ seed

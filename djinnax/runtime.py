@@ -105,7 +105,11 @@ class NullEnv:
 
     def step(self, state: NullState, action: jax.Array, key: jax.Array) -> NullState:
         del key
-        data = state.data.at[:, 0].add(action.astype(jnp.int8))
+        # Write, don't accumulate: int8 += action wrapped past 127 within
+        # one 32-step reset period, so the "touch state" work being
+        # floor-probed included overflow wrapping. A set is the same
+        # state traffic with defined values.
+        data = state.data.at[:, 0].set(action.astype(jnp.int8))
         count = state.step_count + 1
         done = count >= 32                                       # periodic reset
         data = jnp.where(done[:, None], 0, data).astype(jnp.int8)
