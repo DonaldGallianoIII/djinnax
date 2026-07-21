@@ -147,8 +147,11 @@ launch/bandwidth floor. See `pallas_lab.py` + LEARNINGS for evidence.
   `split` before `lax.scan`, threaded through `xs` — not fold_ins inside.
 - **Sampling uniform-over-legal**: one uniform per row + cumsum rank pick
   (`djinn_runtime.sample_uniform_legal`), not a Gumbel per action.
-- Random cell writes: categorical over `where(empty, 0, -inf)` logits +
-  one-hot write (see `_spawn` in game2048).
+- Random cell writes: rank-pick over the valid cells (one uniform ×
+  valid-count, exclusive-cumsum rank match) + one-hot write — see
+  `_spawn` in game2048. Measured 1.05-1.21× over the masked-categorical
+  form it replaced (data/p23_spawn_ab.jsonl); on an ALL-valid target the
+  pick collapses further to a bare `randint` (the reset template).
 
 ## 5. Action masking
 

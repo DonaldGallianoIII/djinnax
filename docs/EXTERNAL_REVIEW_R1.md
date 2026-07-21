@@ -210,7 +210,11 @@ anchor), then interleaved A/B old-kernel vs new-kernel at
 B ∈ {1024, 8192, 65536}, n=5 fresh processes. Headline numbers only
 update if the sweep clears the interval.
 
-### P2. In-step reset spawn runs a 16-way categorical where the answer is `randint(0,16)` — MEDIUM — OPEN
+### P2. In-step reset spawn runs a 16-way categorical where the answer is `randint(0,16)` — MEDIUM — CONFIRMED + ADOPTED
+n=5 interleaved sweep (data/p23_spawn_ab.jsonl): **0.98× @B=1024 (wash),
+1.04× @8192, 1.18× [1.17..1.23] @65536** — real at the batch floor,
+noise at small B. Distribution gates green (spawn histogram + 512-seed
+reset parity). Old form kept as `_reset_spawn_via_spawn`.
 `djinnax/game2048.py:196-203`
 
 The reset template spawns onto an all-empty board, where the masked
@@ -223,7 +227,11 @@ distribution-gated, not bit-gated, so the swap is legal.
 **Gate:** `check_2048_spawn` + variant-equivalence note (bit streams
 change; distribution parity is the contract) + interleaved A/B.
 
-### P3. Mid-game `_spawn` uses masked categorical; house doctrine is rank-pick — MEDIUM — OPEN
+### P3. Mid-game `_spawn` uses masked categorical; house doctrine is rank-pick — MEDIUM — CONFIRMED + ADOPTED
+n=5 interleaved sweep: **1.05× [1.04..1.06] @B=1024, 1.10× @8192,
+1.21× [1.20..1.36] @65536** — every run-median above 1.0 at every B.
+Old form kept as `_spawn_categorical`. Doctrine contradiction in
+WRITING_FAST_ENVS §4 fixed alongside.
 `djinnax/game2048.py:114-121`
 
 O(B·16) Gumbels vs one uniform + cumsum. The megakernel's
@@ -274,7 +282,10 @@ to one per step.
 **Gate:** `check_sokoban` exact replay (reward stream must be
 bit-identical) + interleaved A/B on soko rows.
 
-### P7. Float `2.0**(a+1)` for merge reward where the integer shift form exists 100 lines away — LOW — OPEN
+### P7. Float `2.0**(a+1)` for merge reward where the integer shift form exists 100 lines away — LOW — FIXED (rides along P2/P3)
+Bit-identical by construction (powers of two exact in f32 both ways);
+move-parity rewards gate green. Individual attribution absorbed into the
+P2/P3 sweep by design.
 `djinnax/game2048.py:59`
 
 The megakernel already uses `(1 << (x+1)).astype(f32)` — cheaper, exact,

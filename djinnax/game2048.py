@@ -56,7 +56,11 @@ def _merge_left(rows: jax.Array):
         m = (a != 0) & (a == b)
         rows = rows.at[..., i].set(jnp.where(m, a + 1, a))
         rows = rows.at[..., i + 1].set(jnp.where(m, 0, b))
-        reward = reward + jnp.where(m, 2.0 ** (a.astype(jnp.float32) + 1.0), 0.0)
+        # Integer shift, not float pow: bit-identical values (powers of two
+        # are exact in f32 either way) at lower cost; megakernel already
+        # uses this form (review P7).
+        reward = reward + jnp.where(
+            m, (jnp.int32(1) << (a.astype(jnp.int32) + 1)).astype(jnp.float32), 0.0)
     return rows, reward
 
 
@@ -102,11 +106,41 @@ def move_all_directions(board: jax.Array, move_left_fn=None):
 def _spawn(board: jax.Array, key: jax.Array, enabled: jax.Array):
     """Add a 1-exp (p=.9) or 2-exp (p=.1) tile on a uniform empty cell.
 
+    Rank-pick form (review P3): one uniform scaled by the empty count
+    picks the r-th empty cell via exclusive-cumsum rank match — O(B·16)
+    boolean work instead of 16 Gumbel exponentials per env, the same
+    sampler the megakernel and runtime already use. Distribution-gated
+    (uniform over empties ≡ the old masked categorical), not bit-gated:
+    the uniform→cell mapping differs.
+
     board: (B, 4, 4); enabled: (B,) bool gates the write (illegal actions
     spawn nothing, matching jumanji's cond). Returns (board, cell) — cell
     (B,) int32 flat index of the spawned tile (used by the analytic
     fresh-board mask).
     """
+    B = board.shape[0]
+    flat = board.reshape(B, 16)
+    empty = flat == 0
+    k1, k2 = jax.random.split(key)
+    n_empty = empty.sum(axis=-1)                              # (B,)
+    n_safe = jnp.maximum(n_empty, 1)
+    u = jax.random.uniform(k1, (B,))
+    r = jnp.minimum((u * n_safe.astype(jnp.float32)).astype(jnp.int32),
+                    n_safe - 1)
+    rank = jnp.cumsum(empty, axis=-1) - empty                 # exclusive
+    hit = empty & (rank == r[:, None])                        # one-hot on empties
+    cell = jnp.argmax(hit, axis=-1).astype(jnp.int32)
+    val = jnp.where(
+        jax.random.uniform(k2, (B,)) < 0.9, jnp.int8(1), jnp.int8(2)
+    )
+    write = hit & enabled[:, None]
+    out = jnp.where(write, val[:, None], flat).reshape(B, 4, 4).astype(jnp.int8)
+    return out, cell
+
+
+def _spawn_categorical(board: jax.Array, key: jax.Array, enabled: jax.Array):
+    """Pre-P3 spawn (masked categorical = 16 Gumbels/env). Kept for the
+    interleaved A/B receipt; distribution-identical to _spawn."""
     B = board.shape[0]
     flat = board.reshape(B, 16)
     empty = flat == 0
@@ -122,6 +156,22 @@ def _spawn(board: jax.Array, key: jax.Array, enabled: jax.Array):
     write = onehot & enabled[:, None] & empty
     out = jnp.where(write, val[:, None], flat).reshape(B, 4, 4).astype(jnp.int8)
     return out, cell
+
+
+def _reset_spawn_direct(B: int, key: jax.Array):
+    """Reset-template spawn (review P2): on an all-empty board the spawn
+    distribution is exactly uniform over 16 cells, so a randint replaces
+    the full masked-spawn machinery. Distribution-identical; bit stream
+    differs. Returns (board (B,4,4) int8, cell (B,) int32)."""
+    k_cell, k_val = jax.random.split(key)
+    cell = jax.random.randint(k_cell, (B,), 0, 16)
+    val = jnp.where(
+        jax.random.uniform(k_val, (B,)) < 0.9, jnp.int8(1), jnp.int8(2)
+    )
+    board = jnp.where(
+        jax.nn.one_hot(cell, 16, dtype=jnp.bool_), val[:, None], jnp.int8(0)
+    ).reshape(B, 4, 4).astype(jnp.int8)
+    return board, cell
 
 
 def _single_tile_mask(cell: jax.Array) -> jax.Array:
@@ -143,9 +193,18 @@ class Djinn2048:
 
     n_actions: int = 4
 
-    def __init__(self, move_left_fn=None, spawn_fn=None):
+    def __init__(self, move_left_fn=None, spawn_fn=None, reset_spawn_fn=None):
         self._move_left = move_left_fn or _move_left
         self._spawn = spawn_fn or _spawn
+        self._reset_spawn = reset_spawn_fn or _reset_spawn_direct
+
+    def _reset_spawn_via_spawn(self, B: int, key: jax.Array):
+        """Pre-P2 reset spawn: full spawn machinery on an all-empty board.
+        Kept as an instance-pluggable variant for the A/B receipt."""
+        return self._spawn(
+            jnp.zeros((B, 4, 4), dtype=jnp.int8), key,
+            jnp.ones((B,), dtype=jnp.bool_),
+        )
 
     def init(self, key: jax.Array, n_envs: int) -> G2048State:
         B = n_envs
@@ -195,10 +254,7 @@ class Djinn2048:
 
         # In-step auto-reset (house style): fresh single-tile board per env.
         # Its mask is analytic (perf v2) — no move passes.
-        fresh, fresh_cell = self._spawn(
-            jnp.zeros((B, 4, 4), dtype=jnp.int8), k_reset,
-            jnp.ones((B,), dtype=jnp.bool_),
-        )
+        fresh, fresh_cell = self._reset_spawn(B, k_reset)
         new_board = jnp.where(done[:, None, None], fresh, new_board)
         mask = jnp.where(done[:, None], _single_tile_mask(fresh_cell), mask)
 
