@@ -4,6 +4,8 @@ __pycache__/
 build/
 dist/
 .venv/
-reference-engines/
+.pytest_cache/
+.benchmarks/
+reference-engines
 *.jsonl.run*
 sweep_results.jsonl
