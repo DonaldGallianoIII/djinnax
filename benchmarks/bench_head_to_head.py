@@ -16,6 +16,14 @@ Usage (GPU shim + 50% cap):
     XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 \
     XLA_PYTHON_CLIENT_ALLOCATOR=platform \
     $VENV/bin/python benchmarks/bench_head_to_head.py
+
+Protocol note (deliberate): every runner here uses protocol v1 —
+per-step fold_in keys and masked-categorical action sampling — applied
+IDENTICALLY to both sides of every ratio, because symmetric overhead is
+what makes a ratio fair. runtime.py's v2 (bulk key hoist, rank-pick,
+donation) is faster in absolute terms; floor_bench.py measures that
+delta. Consequence: the ratios are the headline numbers, while absolute
+env-steps/s from THIS file are conservative for the djinn side.
 """
 
 from __future__ import annotations

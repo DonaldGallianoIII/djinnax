@@ -70,4 +70,7 @@ HOW_TO_RUN.md).
 Medians with [min..max] from multiple fresh-process runs; interleaved
 pairwise for anything sub-2×; null results kept and labeled; known
 caveats (RNG-stream differences, hardware specificity, single-GPU-model
-evidence) stated next to the numbers they qualify.
+evidence) stated next to the numbers they qualify. The head-to-head
+harness deliberately runs the same driving protocol on both sides of
+every ratio (see its docstring), so its absolute env-steps/s are
+conservative for the djinn engines.
