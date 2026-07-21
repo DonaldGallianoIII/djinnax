@@ -1,6 +1,6 @@
 name: ci
 on:
-  push: { branches: [main] }
+  push: { branches: [main, Development] }
   pull_request:
 jobs:
   cpu-tests:
@@ -9,9 +9,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: Install
+      - name: Install (jax pinned to the tested line)
         run: |
-          pip install -e ".[refs,test]"
+          pip install -e ".[refs,test]" "jax==0.10.*"
       - name: Fetch reference engines (parity targets)
         run: |
           mkdir -p reference-engines
@@ -21,3 +21,32 @@ jobs:
         env:
           DJINNAX_REQUIRE_REFS: "1"  # missing refs = failure here, skip locally
         run: pytest tests/ -q
+
+  # Catches packaging breaks the editable install above cannot see
+  # (e.g. a package module importing repo-only code): build the wheel,
+  # install it in a bare environment, import every shipped module.
+  wheel-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Build wheel
+        run: |
+          pip install build
+          python -m build --wheel
+      - name: Install wheel into a clean env and import all modules
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl "jax[cpu]==0.10.*" tqdm
+          /tmp/clean/bin/python - <<'EOF'
+          import inspect, tqdm
+          import djinnax
+          import djinnax.megakernel, djinnax.megakernel_rng, djinnax.runtime
+          import djinnax.distributions, djinnax.game2048, djinnax.game2048_lut
+          import djinnax.sokoban, djinnax.ttt, djinnax.refs
+          src = inspect.getsourcefile(tqdm)
+          assert src and "site-packages" in src, f"real tqdm shadowed by refs stub: {src}"
+          assert djinnax.Djinn2048 and djinnax.run_megakernel_rng
+          print("wheel import smoke: OK")
+          EOF
