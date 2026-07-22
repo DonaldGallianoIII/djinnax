@@ -36,6 +36,36 @@ GPU** (`data/p1_orient_ab.jsonl`, `data/e1_megakernel_canmask_ab.jsonl`,
 earlier tables: the old runner let the compiler delete its output
 work, inflating it ~1.63× (`data/e3_soko_dce_ab.jsonl`).
 
+## The megakernel is the point — build one
+
+The top row of that table is not exotic infrastructure: it is one
+persistent Triton kernel that runs the **entire 64-step rollout per
+env** with the board living in 16 registers, actions sampled in-kernel,
+RNG hashed from counters (no state), and reset handled in-register —
+one launch where the XLA engines pay hundreds.
+
+We almost didn't build it. Conventional wisdom — including our own
+earlier docs — said *"once your complex env is as fast as a trivial
+one, the logic is free; a kernel can only chase the same floor."*
+**That rule is wrong, and this repo has the receipts:** the floor that
+rungs 1-3 converge to is an XLA artifact (per-step kernel launches +
+HBM state traffic between ops), and a persistent kernel deletes it
+rather than chasing it. Our LUT engine had already "hit the floor" —
+the megakernel still beat it **5-7.6×**, and three measured iterations
+later (orient-select, analytic mask, odd-even compaction) it is ~3×
+faster again.
+
+So if your env passes the structural checklist — rollout
+sequential-per-env, per-env state fits in ~16-32 int32 registers,
+branchless elementwise step, batch big enough to fill the GPU — **go
+for the kernel.** The full authoring recipe is `WRITING_FAST_ENVS §3c`
+(register pre-flight, SoA lanes, the same-function bit-parity workflow
+that makes kernel verification trivial, counter-RNG, the gate battery);
+`PORTING_PLAYBOOK` has the numbered pre-flight; `benchmarks/pallas_lab.py`
+is the guided on-ramp. Costs, stated up front: ~30s compiles,
+hardware-generation-specific lowering, and a 2.2-3.9× tax if you chunk
+rollouts — chunk coarsely.
+
 ## Thirty seconds of usage
 
 ```python
@@ -65,9 +95,10 @@ state. The megakernel entry point is `djinnax.run_megakernel_rng`
 |---|---|
 | run anything (setup, GPU shim, scripts) | **HOW_TO_RUN.md** |
 | write or port a game the fast way | **PORTING_PLAYBOOK.md**, then **WRITING_FAST_ENVS.md** |
+| **build a megakernel for your env** | **WRITING_FAST_ENVS §3c** (the recipe) + PORTING_PLAYBOOK pre-flight; on-ramp: `benchmarks/pallas_lab.py` |
 | point an AI coding agent at this style | **CLAUDE.md** (auto-read by Claude Code) / AGENTS.md |
 | understand why the rules exist (evidence) | **LEARNINGS.md** |
-| the megakernel design + results | **MEGAKERNEL_PLAN.md** |
+| how the megakernel design evolved (history) | **docs/MEGAKERNEL_PLAN.md** (banner explains what changed) |
 
 ## What's in here
 
