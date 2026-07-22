@@ -56,6 +56,9 @@ def saxpy(a: float, x: jax.Array, y: jax.Array) -> jax.Array:
     Mosaic backend first fought us; Triton simply doesn't need one)."""
     n = x.shape[0]
     block = 4096
+    if n % block != 0:
+        raise ValueError(f"n={n} must be a multiple of {block} "
+                         f"(a truncated grid would silently skip the tail)")
 
     def kernel(x_ref, y_ref, o_ref):
         # Refs are views of the current tile; index to load, assign to store.
@@ -128,6 +131,9 @@ def _rowmove_kernel(x0_ref, x1_ref, x2_ref, x3_ref,
 def rowmove_pallas(rows: jax.Array):
     """rows: (R, 4) int8 -> (moved (R, 4) int8, reward (R,) f32)."""
     r = rows.shape[0]
+    if r % _ROWS_BLOCK != 0:
+        raise ValueError(f"R={r} must be a multiple of {_ROWS_BLOCK} "
+                         f"(a truncated grid would silently skip the tail)")
     cols = [rows[:, i] for i in range(4)]              # SoA layout outside
     spec = pl.BlockSpec((_ROWS_BLOCK,), lambda i: (i,))
     out = pl.pallas_call(

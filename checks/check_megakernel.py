@@ -68,16 +68,37 @@ def check_analytic_reset_mask():
 
 
 def check_b_divisibility_guard():
-    board = jnp.zeros((BLOCK + 1, 16), dtype=jnp.int8)
+    """BOTH entry points refuse a non-block-multiple B, and Mode A also
+    refuses a mis-shaped uniforms buffer (cross-model audit S/E4: Mode A
+    previously launched a truncated grid and returned uninitialized tail
+    rows with a full-B output shape)."""
+    from djinnax.megakernel import N_UNI, run_megakernel
+
+    bad_board = jnp.zeros((BLOCK + 1, 16), dtype=jnp.int8)
     seed = jnp.asarray([1, 0], dtype=jnp.uint32)
     try:
-        run_megakernel_rng(board, seed)
+        run_megakernel_rng(bad_board, seed)
+        raise AssertionError("Mode B: non-multiple B did not raise")
     except ValueError as e:
         assert "multiple of BLOCK" in str(e)
-        print("B-divisibility guard OK — non-multiple B raises instead of "
-              "silently dropping the tail")
-        return
-    raise AssertionError("non-multiple B did not raise")
+
+    uni = jnp.zeros((N_STEPS, N_UNI, BLOCK + 1), dtype=jnp.float32)
+    try:
+        run_megakernel(bad_board, uni)
+        raise AssertionError("Mode A: non-multiple B did not raise")
+    except ValueError as e:
+        assert "multiple of BLOCK" in str(e)
+
+    good_board = jnp.zeros((BLOCK, 16), dtype=jnp.int8)
+    short_uni = jnp.zeros((N_STEPS - 1, N_UNI, BLOCK), dtype=jnp.float32)
+    try:
+        run_megakernel(good_board, short_uni)
+        raise AssertionError("Mode A: short uniforms buffer did not raise")
+    except ValueError as e:
+        assert "uniforms shape" in str(e)
+
+    print("B-divisibility guards OK — Mode A + Mode B raise on non-multiple "
+          "B; Mode A raises on mis-shaped uniforms")
 
 
 def check_bit_determinism(Bn=1024):

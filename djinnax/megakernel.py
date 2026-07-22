@@ -267,8 +267,19 @@ def _make_mega_kernel(step):
 
 
 def run_megakernel(board: jax.Array, uniforms: jax.Array, step_fn=None):
-    """board (B, 16) int8; uniforms (N_STEPS, N_UNI, B) f32."""
+    """board (B, 16) int8; uniforms (N_STEPS, N_UNI, B) f32.
+
+    B must be a multiple of BLOCK — the grid would silently DROP the tail
+    otherwise (rows past the last full block would be returned
+    uninitialized while the output shape claims all B are computed)."""
     Bn = board.shape[0]
+    if Bn % BLOCK != 0:
+        raise ValueError(f"B={Bn} must be a multiple of BLOCK={BLOCK} "
+                         f"(a truncated grid would silently skip the tail)")
+    if uniforms.shape != (N_STEPS, N_UNI, Bn):
+        raise ValueError(f"uniforms shape {uniforms.shape} != expected "
+                         f"({N_STEPS}, {N_UNI}, {Bn}) — a short buffer would "
+                         f"read out of bounds inside the kernel")
     return pl.pallas_call(
         _make_mega_kernel(step_fn or step_lanes),
         out_shape=(

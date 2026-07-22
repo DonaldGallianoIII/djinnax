@@ -37,8 +37,9 @@ def test_analytic_reset_mask():
     cm.check_analytic_reset_mask()
 
 
-@requires_gpu
 def test_b_divisibility_guard():
+    # Pure host-side argument validation (raises before any launch) —
+    # CPU-runnable, so CI covers both entry points' guards.
     cm.check_b_divisibility_guard()
 
 
