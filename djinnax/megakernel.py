@@ -174,9 +174,36 @@ def _spawn_lanes(lanes, u_cell, u_val, enabled):
     return tuple(out), r
 
 
-def _make_step(apply_move):
-    """Build a step function around one of the two move-apply variants.
-    Everything except step 2 is shared, so the variants cannot drift."""
+def _can_dir_analytic(lanes, d):
+    """Legality of direction d WITHOUT moving (review E1/E2): within each
+    push-order group, some adjacent pair has cur != 0 and (prev == 0 or
+    prev == cur) — a tile with a slot ahead, or a merge. 12 lane-pair
+    comparisons vs a full _move_dir network. Gated exhaustively against
+    the moved-board probe (check_2048_can_analytic — jumanji-chained)
+    and through full-rollout equivalence vs the _move_dir mask path
+    (check_megakernel.check_analytic_mask_step)."""
+    can = None
+    for group in _GROUPS[d]:
+        for prev_i, cur_i in zip(group[:-1], group[1:]):
+            prev, cur = lanes[prev_i], lanes[cur_i]
+            p = (cur != 0) & ((prev == 0) | (prev == cur))
+            can = p if can is None else (can | p)
+    return can
+
+
+def _mask_from_moves(lanes):
+    """Pre-E1 mask pass: 4 full move networks, keep only `changed`."""
+    return [_move_dir(lanes, d)[2] for d in range(4)]
+
+
+def _mask_analytic(lanes):
+    return [_can_dir_analytic(lanes, d) for d in range(4)]
+
+
+def _make_step(apply_move, mask_fn=_mask_analytic):
+    """Build a step function around one of the two move-apply variants
+    (and a mask-pass variant). Everything else is shared, so the
+    variants cannot drift."""
 
     def step(lanes, mask, score, u):
         u_act, u_cell, u_val, u_rcell, u_rval = u
@@ -205,11 +232,9 @@ def _make_step(apply_move):
         # 3. spawn (gated on legality)
         new_lanes, _ = _spawn_lanes(new_lanes, u_cell, u_val, was_legal)
 
-        # 4. next mask from the post-spawn board
-        new_mask = []
-        for d in range(4):
-            _, _, ch = _move_dir(new_lanes, d)
-            new_mask.append(ch)
+        # 4. next mask from the post-spawn board (variant point: analytic
+        # predicate vs changed-flags of 4 full move networks)
+        new_mask = mask_fn(new_lanes)
         done = ~(new_mask[0] | new_mask[1] | new_mask[2] | new_mask[3])
 
         # 5. in-register reset where done: fresh single-tile board + analytic mask
@@ -230,15 +255,21 @@ def _make_step(apply_move):
     return step
 
 
-# Production step (P1 orient-select) and the pre-P1 reference variant.
+# Production step (P1 orient-select + E1 analytic mask) and reference
+# variants: _allmoves is the pre-P1 move pass, _movemask the pre-E1 mask
+# pass — kept so every superseded configuration stays reproducible and
+# the analytic mask is rollout-gated against the _move_dir mask path.
 step_lanes = _make_step(_apply_move_oriented)
-step_lanes_allmoves = _make_step(_apply_move_allmoves)
+step_lanes_movemask = _make_step(_apply_move_oriented, mask_fn=_mask_from_moves)
+step_lanes_allmoves = _make_step(_apply_move_allmoves, mask_fn=_mask_from_moves)
 step_lanes.__doc__ = """One env step on 16 board lanes. u = 5 uniforms
 (BLOCK,) each. Runs identically inside the kernel and under XLA scan."""
 
 
 def _initial_mask(lanes):
-    return tuple(_move_dir(lanes, d)[2] for d in range(4))
+    # E1: analytic predicate (≡ the _move_dir changed-flags — gated
+    # exhaustively; see _can_dir_analytic). Entry cost, once per launch.
+    return tuple(_mask_analytic(lanes))
 
 
 # --- the megakernel ---------------------------------------------------------

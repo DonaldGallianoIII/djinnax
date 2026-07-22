@@ -37,6 +37,14 @@ def test_analytic_reset_mask():
     cm.check_analytic_reset_mask()
 
 
+def test_analytic_mask_chain_link():
+    cm.check_analytic_mask_chain_link()
+
+
+def test_analytic_mask_step_equivalence():
+    cm.check_analytic_mask_step()
+
+
 def test_b_divisibility_guard():
     # Pure host-side argument validation (raises before any launch) —
     # CPU-runnable, so CI covers both entry points' guards.

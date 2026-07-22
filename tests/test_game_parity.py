@@ -69,3 +69,8 @@ def test_2048_exp15_divergence_pinned():
 
 def test_2048_can_lut_probe():
     cp.check_2048_can_lut(n_boards=2048)
+
+
+def test_2048_can_analytic_probe():
+    # pure-djinn (the moved-board side is itself jumanji-chained above)
+    cp.check_2048_can_analytic()

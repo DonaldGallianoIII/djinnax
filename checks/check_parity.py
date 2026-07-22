@@ -370,6 +370,42 @@ def check_2048_can_lut(n_boards: int = 4096, seed: int = 9) -> None:
           f"gather+OR probe ≡ unpack-and-compare")
 
 
+def check_2048_can_analytic() -> None:
+    """Review E2 / audit PERF-01: the analytic legality predicate ≡ the
+    moved-board probe (which is parity-chained to jumanji's can_move).
+
+    EXHAUSTIVE, not sampled: every one of the 65536 possible 4-cell rows
+    is embedded as row 0 of an otherwise-empty board (empty rows are
+    unmovable in the row directions, so board-level left/right legality
+    equals that row's), checked for left/right; the transposed boards
+    check up/down. A full-range random-board sweep (all four directions
+    interacting, exponents 0-15, zero-biased) covers the composition.
+    """
+    from djinnax.game2048 import can_move_all_analytic, move_all_directions
+
+    # exhaustive rows: (65536, 4, 4) boards, row 0 = the enumerated row
+    vals = np.arange(65536, dtype=np.int64)
+    rows = np.stack([(vals >> (4 * i)) & 0xF for i in range(4)], axis=-1)
+    boards = np.zeros((65536, 4, 4), dtype=np.int8)
+    boards[:, 0, :] = rows
+    b = jnp.asarray(boards)
+    for name, bb in (("rows", b), ("cols", jnp.swapaxes(b, -2, -1))):
+        fast = can_move_all_analytic(bb)
+        slow = move_all_directions(bb)[2]
+        assert jnp.array_equal(fast, slow), f"analytic probe divergence ({name})"
+
+    # random full-range boards, zero-biased (mirrors check_2048_can_lut)
+    key = jax.random.PRNGKey(11)
+    rb = jax.random.randint(key, (4096, 4, 4), 0, 16, dtype=jnp.int32)
+    zmask = jax.random.uniform(jax.random.PRNGKey(12), (4096, 4, 4)) < 0.4
+    rb = jnp.where(zmask, 0, rb).astype(jnp.int8)
+    assert jnp.array_equal(can_move_all_analytic(rb), move_all_directions(rb)[2]), (
+        "analytic probe divergence (random boards)"
+    )
+    print("2048 analytic can-probe OK — 65536 exhaustive rows x2 orientations "
+          "+ 4096 full-range boards, predicate ≡ moved-board probe")
+
+
 if __name__ == "__main__":
     check_ttt(win_lut=False)
     check_ttt(win_lut=True)
@@ -382,4 +418,5 @@ if __name__ == "__main__":
     check_2048_reset()
     check_2048_exp15_divergence()
     check_2048_can_lut()
+    check_2048_can_analytic()
     print("ALL PARITY CHECKS PASSED")

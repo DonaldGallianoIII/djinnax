@@ -141,6 +141,34 @@ def move_all_directions(board: jax.Array, move_left_fn=None):
     return jnp.stack(moved), jnp.stack(rewards), jnp.stack(can)
 
 
+def can_move_all_analytic(board: jax.Array) -> jax.Array:
+    """Legality of all 4 moves WITHOUT moving (review E2 / audit
+    PERF-01): direction d changes the board iff some adjacent pair
+    (prev, cur) in push order satisfies
+
+        cur != 0  and  (prev == 0  or  prev == cur)
+
+    — a tile with an empty slot ahead of it, or a merge. 12 pair
+    comparisons per direction; no compaction/merge networks, no reward
+    arithmetic, no moved-board materialization. Returns (4, B) bool in
+    action order 0=up 1=right 2=down 3=left, the same shape/order as
+    move_all_directions(...)[2].
+
+    Gated EXHAUSTIVELY (all 65536 4-cell rows, both row directions, plus
+    transposed boards for the column directions) against the moved-board
+    probe in checks/check_parity.py::check_2048_can_analytic — which is
+    itself parity-chained to jumanji's can_move.
+    """
+    def pairs(prev, cur):
+        return jnp.any((cur != 0) & ((prev == 0) | (prev == cur)), axis=(-2, -1))
+
+    up = pairs(board[:, :-1, :], board[:, 1:, :])
+    right = pairs(board[:, :, 1:], board[:, :, :-1])
+    down = pairs(board[:, 1:, :], board[:, :-1, :])
+    left = pairs(board[:, :, :-1], board[:, :, 1:])
+    return jnp.stack([up, right, down, left])
+
+
 def _spawn(board: jax.Array, key: jax.Array, enabled: jax.Array):
     """Add a 1-exp (p=.9) or 2-exp (p=.1) tile on a uniform empty cell.
 
@@ -236,11 +264,12 @@ class Djinn2048:
         self._move_left = move_left_fn or _move_left
         self._spawn = spawn_fn or _spawn
         self._reset_spawn = reset_spawn_fn or _reset_spawn_direct
-        # (4, B) legality probe; default derives it from the move pass
-        # (moved/rewards are dead outputs XLA eliminates — but the
-        # compare itself remains; a LUT engine plugs a gather instead).
-        self._can_move = can_move_fn or (
-            lambda b: move_all_directions(b, self._move_left)[2])
+        # (4, B) legality probe. Default = the analytic predicate (E2,
+        # adopted: 1.90-2.22x branchless / 1.06-1.16x LUT, n=5 ABBA
+        # fresh-process — data/e2_canmask_analytic_ab.jsonl). The pre-E2
+        # derive-from-moves form is reconstructable via
+        # can_move_fn=lambda b: move_all_directions(b, fn)[2].
+        self._can_move = can_move_fn or can_move_all_analytic
         self._oriented_move = oriented_move_fn or _oriented_move_gather
 
     def _reset_spawn_via_spawn(self, B: int, key: jax.Array):
@@ -269,9 +298,10 @@ class Djinn2048:
 
         The chosen move is ONE move pass: select-orient the board by action
         (pure data movement), move-left once, inverse-orient. The per-step
-        move-pass budget is 1 (move) + 4 (next mask) + 4 (reset template
-        mask) — comparable to jumanji's 1 move + 4 can_move + vmap-forced
-        reset branch.
+        move-network budget is 1 — the next mask is the analytic predicate
+        (E2: 48 comparisons, no move networks) and the reset-template mask
+        is analytic too (perf v2). jumanji's budget on the same step:
+        1 move + 4 can_move + vmap-forced reset branch.
         """
         B = action.shape[0]
         new_board, reward = self._oriented_move(state.board, action, self._move_left)

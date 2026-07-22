@@ -50,6 +50,56 @@ def check_move_chain_link(n_boards: int = 2048, seed: int = 0):
           f"{n_boards} boards x 4 dirs (moved/reward/changed)")
 
 
+def check_analytic_mask_chain_link(n_boards: int = 4096, seed: int = 7):
+    """E1 binding gate, part 1: the lane-domain analytic predicate ≡
+    move_all_directions[..][2] (jumanji-chained) — NOT kernel-vs-XLA
+    parity, which the same-function trick makes blind to a wrong shared
+    component. Random full-range zero-biased boards + the adversarial
+    board set."""
+    from djinnax.megakernel import _mask_analytic
+
+    key = jax.random.PRNGKey(seed)
+    boards = jax.random.randint(key, (n_boards, 4, 4), 0, 16, dtype=jnp.int32)
+    zmask = jax.random.uniform(jax.random.PRNGKey(seed + 1), (n_boards, 4, 4)) < 0.4
+    boards = jnp.where(zmask, 0, boards).astype(jnp.int8)
+
+    checker = np.zeros((4, 4), np.int8)
+    checker[::2, ::2] = 1; checker[1::2, 1::2] = 1
+    checker[::2, 1::2] = 2; checker[1::2, ::2] = 2
+    extra = np.stack([
+        checker, np.zeros((4, 4), np.int8), np.full((4, 4), 15, np.int8),
+        np.asarray([[14, 14, 15, 15], [13, 13, 14, 14],
+                    [0, 0, 0, 0], [1, 1, 2, 2]], np.int8),
+    ])
+    boards = jnp.concatenate([boards, jnp.asarray(extra)])
+
+    ref_can = jax.jit(move_all_directions)(boards)[2]           # (4, B)
+    flat = boards.reshape(-1, 16).astype(jnp.int32)
+    lanes = tuple(flat[:, i] for i in range(16))
+    ours = jnp.stack(jax.jit(_mask_analytic)(lanes))            # (4, B)
+    assert jnp.array_equal(ours, ref_can), "analytic lane mask != jumanji-chained changed flags"
+    print(f"analytic mask chain link OK — lane predicate ≡ move_all_directions "
+          f"changed on {int(boards.shape[0])} boards (incl. adversarial) x 4 dirs")
+
+
+def check_analytic_mask_step(Bn: int = 512, seed: int = 13):
+    """E1 binding gate, part 2: FULL-ROLLOUT equivalence — the analytic
+    mask path (production step_lanes) vs the pre-E1 _move_dir mask path
+    (step_lanes_movemask), same uniforms, N_STEPS under XLA scan.
+    Catches composition/wiring errors the pointwise gate can't."""
+    from djinnax.megakernel import (
+        _xla_reference, step_lanes, step_lanes_movemask,
+    )
+
+    board, uniforms = _fresh_inputs(Bn, seed)
+    a = _xla_reference(board, uniforms, step_lanes)
+    b = _xla_reference(board, uniforms, step_lanes_movemask)
+    for x, y, name in zip(a, b, ("board", "score", "done")):
+        assert jnp.array_equal(x, y), f"analytic-vs-movemask rollout: {name} diverges"
+    print(f"analytic mask step OK — {N_STEPS}-step rollouts bit-identical, "
+          f"analytic vs move-derived mask path, B={Bn}")
+
+
 def check_analytic_reset_mask():
     """The chaining feature recomputes the mask from the board at entry;
     that is exact only if the analytic single-tile mask == the computed
@@ -187,6 +237,8 @@ def check_rng_deep(n=1 << 18):
 
 if __name__ == "__main__":
     check_move_chain_link()
+    check_analytic_mask_chain_link()
+    check_analytic_mask_step()
     check_analytic_reset_mask()
     check_b_divisibility_guard()
     check_bit_determinism()

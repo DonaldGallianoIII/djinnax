@@ -1,0 +1,15 @@
+{"B": 1024, "pair": "movemask->analytic-kernel", "ratio_median": 1.4844183032506555, "ratio_min": 1.075295282758226, "ratio_max": 1.9621454184649973, "steps_per_s_new": 75635710.12426111}
+{"B": 8192, "pair": "movemask->analytic-kernel", "ratio_median": 1.659771501539443, "ratio_min": 1.4325257290288487, "ratio_max": 1.9351217316774054, "steps_per_s_new": 573801946.8790401}
+{"B": 65536, "pair": "movemask->analytic-kernel", "ratio_median": 1.8468721895977485, "ratio_min": 1.7835690495210201, "ratio_max": 2.8196910362248517, "steps_per_s_new": 6532929410.676087}
+{"B": 1024, "pair": "movemask->analytic-kernel", "ratio_median": 1.635979585963569, "ratio_min": 1.5530255272027957, "ratio_max": 1.6660113416336382, "steps_per_s_new": 74223825.28575163}
+{"B": 8192, "pair": "movemask->analytic-kernel", "ratio_median": 1.4814430160811813, "ratio_min": 1.2638149694083813, "ratio_max": 2.024399973409183, "steps_per_s_new": 410676104.8532248}
+{"B": 65536, "pair": "movemask->analytic-kernel", "ratio_median": 1.876539360448234, "ratio_min": 1.7374306290709614, "ratio_max": 2.573175382274618, "steps_per_s_new": 1690218389.1586611}
+{"B": 1024, "pair": "movemask->analytic-kernel", "ratio_median": 1.604696037181101, "ratio_min": 1.4367830186033572, "ratio_max": 1.8907042467340356, "steps_per_s_new": 71240126.6923169}
+{"B": 8192, "pair": "movemask->analytic-kernel", "ratio_median": 1.5219059562461563, "ratio_min": 1.311820228291974, "ratio_max": 1.916267903699703, "steps_per_s_new": 418422165.0018526}
+{"B": 65536, "pair": "movemask->analytic-kernel", "ratio_median": 1.8566065186681429, "ratio_min": 1.729400402447359, "ratio_max": 1.9533893575420205, "steps_per_s_new": 967471861.977783}
+{"B": 1024, "pair": "movemask->analytic-kernel", "ratio_median": 1.176658556420767, "ratio_min": 0.9959383312094376, "ratio_max": 1.3504261646478601, "steps_per_s_new": 180721165.12314352}
+{"B": 8192, "pair": "movemask->analytic-kernel", "ratio_median": 1.62448503275992, "ratio_min": 1.2863665353739218, "ratio_max": 1.8936591658458524, "steps_per_s_new": 375550476.7634791}
+{"B": 65536, "pair": "movemask->analytic-kernel", "ratio_median": 1.8494248253095666, "ratio_min": 0.8026462769552193, "ratio_max": 4.399770831747415, "steps_per_s_new": 6402833516.187571}
+{"B": 1024, "pair": "movemask->analytic-kernel", "ratio_median": 1.4859955341853048, "ratio_min": 1.3083500168974094, "ratio_max": 2.171173198443223, "steps_per_s_new": 52230948.342160106}
+{"B": 8192, "pair": "movemask->analytic-kernel", "ratio_median": 1.4880712019832396, "ratio_min": 1.306798762895641, "ratio_max": 1.6673429972440834, "steps_per_s_new": 571932874.1255463}
+{"B": 65536, "pair": "movemask->analytic-kernel", "ratio_median": 1.8353414582318968, "ratio_min": 1.6740026710107607, "ratio_max": 3.7393017750843915, "steps_per_s_new": 1076186650.0312855}
