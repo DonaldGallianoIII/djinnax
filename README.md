@@ -17,9 +17,19 @@ control flow the reference keeps in its hot path, ending at a persistent
 | 65,536 | 1.7× | 2.4× | 6.2× | 14.9× | **91×** |
 
 Within-run ratios vs the reference implementation, medians of an n=5
-frozen-code sweep on a quiet RTX 4070 (full intervals in
-`docs`/commit history). Peak absolute: **1.9B env-steps/s** for full
-2048 games, RNG included, in one kernel launch.
+frozen-code sweep on a quiet RTX 4070 (full intervals + history in
+`docs/RESULTS_HISTORY.md`, raw rows in `data/sweep_official_v2.jsonl`).
+Peak absolute: **1.9B env-steps/s** for full 2048 games, RNG included,
+in one kernel launch.
+
+*Provenance (honesty policy):* measured 2026-07-21. Two known biases
+relative to the current tree, both to be replaced by the next
+quiet-window sweep: the megakernel column predates the orient-select
+kernel (review P1, ~1.5× kernel-side — the current kernel is FASTER
+than this table), and the sokoban column predates the live-outputs
+runner fix (review E3 — our side was ~1.6× inflated by dead-code
+elimination, so the current honest ratio is LOWER; receipt in
+`data/e3_soko_dce_ab.jsonl`).
 
 ## Thirty seconds of usage
 
@@ -34,10 +44,15 @@ state, reward = env.step(state, actions, jax.random.fold_in(key, 1))
 ```
 
 Step signatures are per-env (each returns exactly what its game
-defines — docstrings state them); every env is batch-native with
-in-step auto-reset, so the line above is the whole API. The megakernel
-entry point is `djinnax.run_megakernel_rng` (GPU required; see
-HOW_TO_RUN.md).
+defines — docstrings state them); every env is batch-native, so the
+line above is the whole API. Episode boundaries follow each env's
+parity reference: **2048 and sokoban auto-reset in-step** (jumanji
+`AutoResetWrapper` convention — `terminated` flags the transition that
+ended, the returned state/observation are the already-reset episode),
+while **tic-tac-toe freezes terminal states** (pgx convention — reset
+externally). The returned observation always describes the returned
+state. The megakernel entry point is `djinnax.run_megakernel_rng`
+(GPU required; see HOW_TO_RUN.md).
 
 ## Read this before anything else
 
@@ -58,8 +73,9 @@ HOW_TO_RUN.md).
   bit-verified against an XLA reference running the same step function).
 - `checks/` + `tests/` — the correctness
   gates. **No number in this repo was measured before its engine passed
-  parity.** `pytest tests/` runs 26 tests on GPU, 21 (+5 skips) on CPU;
-  reference-parity tests skip if pgx/jumanji aren't set up (HOW_TO_RUN).
+  parity.** `pytest tests/` runs the full suite (exact counts live in
+  HOW_TO_RUN.md only, so they can't drift here); GPU-kernel tests skip
+  on CPU, reference-parity tests skip if pgx/jumanji aren't set up.
 - `benchmarks/` — the
   measurement harness (interleaved pairwise, frozen-code sweeps,
   medians-with-spread; see LEARNINGS §3 for the methodology rules).

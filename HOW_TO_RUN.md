@@ -7,7 +7,7 @@
   code uses the Pallas **Triton** lowering (works on sm_80+ class GPUs);
   the default Mosaic-GPU lowering needs Hopper (sm_90) and is NOT used.
 - CPU-only machines: parity/RNG/chain-link tests run fine (`pytest
-  tests/` passes with the 5 kernel tests skipped); benches are
+  tests/` passes with the GPU-kernel tests skipped); benches are
   meaningless on CPU.
 - Extra pip deps for the reference comparisons: `svgwrite dm-env
   gymnasium requests matplotlib` (jumanji's heavy optional deps are
@@ -42,8 +42,8 @@ git clone --depth 1 https://github.com/instadeepai/jumanji.git
 `refs.py` puts them on sys.path; nothing is pip-installed from the
 clones.
 
-Without the clones, the 7 reference-parity tests **skip** with a
-pointer here (fresh clone: 14 pass + 12 skip on CPU). CI sets
+Without the clones, the reference-parity tests **skip** with a
+pointer here. CI sets
 `DJINNAX_REQUIRE_REFS=1` so a missing reference fails loudly there —
 set it locally too if you want the strict behavior.
 
@@ -53,7 +53,7 @@ set it locally too if you want the strict behavior.
 |---|---|---|
 | `python checks/check_parity.py` | all engines ≡ pgx/jumanji move-for-move | no (slow-ok on CPU) |
 | `python checks/check_megakernel.py` | megakernel battery: chain link, determinism, chaining, adversarial, RNG | yes |
-| `pytest tests/ -q` | the same gates, CI-shaped (CPU: 21 pass + 5 skip) | optional |
+| `pytest tests/ -q` | the same gates, CI-shaped — 36 tests (canonical count; GPU-kernel tests skip on CPU, reference-parity tests skip without the clones) | optional |
 | `python benchmarks/bench_head_to_head.py` | one bench run, all engines, within-run ratios | yes |
 | `python benchmarks/sweep_stats.py --n 5` | the OFFICIAL numbers: n fresh-process runs, median [min..max] | yes |
 | `python benchmarks/floor_bench.py` | runtime-floor probe (NullEnv) + protocol A/B | yes |

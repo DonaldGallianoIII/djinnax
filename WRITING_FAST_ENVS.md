@@ -131,10 +131,16 @@ Runtime logic cost → zero; 384KB of tables sit in L2. Candidates: any
 row/line/neighborhood of ≤16 bits (2048 rows, TTT occupancy 9 bits,
 tetris rows, connect-4 columns, rule-based cellular updates).
 
-**Rung 4 — custom kernel (Pallas).** Only after rung 3 leaves a measured
-gap to the platform floor. Test first: *is your complex env as fast as a
-trivial env at huge B?* If yes, logic is free — a kernel chases the same
-launch/bandwidth floor. See `pallas_lab.py` + LEARNINGS for evidence.
+**Rung 4 — persistent kernel (Pallas).** NOT gated on "still above the
+floor" — that stop rule is disproven (LEARNINGS §2/§6: 2048-LUT had
+matched trivial-env speed and the megakernel still won ~5-7.6×). The
+"platform floor" is an XLA artifact — per-step launches and HBM state
+traffic between ops — and a persistent kernel (state in registers, one
+launch per rollout) removes it rather than chasing it. Climb this rung
+when the PORTING_PLAYBOOK rung-4 checklist passes: rollout
+sequential-per-env, whole per-env state fits in a few dozen registers,
+step is elementwise/branchless on those lanes, B fills the GPU. See
+`pallas_lab.py` + LEARNINGS for evidence and costs.
 
 ## 4. RNG
 

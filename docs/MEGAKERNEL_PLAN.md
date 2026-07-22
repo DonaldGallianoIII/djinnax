@@ -1,5 +1,17 @@
 # Megakernel plan — "environment-on-chip" for 2048
 
+> **⚠ Historical design document.** This is the plan AS WRITTEN before
+> building; the shipped kernel diverges from it where measurement said
+> so. Biggest divergence (review P1): the plan's "compute all 4
+> direction moves … free in registers" design was **disproven by A/B**
+> — computing one oriented move (permute lanes by action → single move
+> network → inverse permute) beat the all-moves kernel by **1.41-1.57×**
+> (`data/p1_orient_ab.jsonl`). "It's in registers" never means free:
+> the ALU work of three extra move networks was the whole regression.
+> The all-moves step survives as `step_lanes_allmoves` (mask/probe
+> duties only). For current authoring guidance use PORTING_PLAYBOOK's
+> rung-4 checklist; for current results use README/RESULTS_HISTORY.
+
 **Status:** STAGES 1-3 COMPLETE (2026-07-20, `megakernel.py`) — it
 works and it moved the floor. Probes all passed (static ref indexing,
 fori tuple carries, 16-lane pressure at BLOCK=128). Parity:

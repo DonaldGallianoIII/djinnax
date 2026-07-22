@@ -391,6 +391,22 @@ families independently landed on the same headline items.
   list** — new workload needs its own end-to-end gate; measure the
   cheap items first. Status: `DEFERRED`.
 
+**Batch A closeout (2026-07-21):**
+
+| item | status | commit |
+|---|---|---|
+| E4 / SOL-03 | `FIXED` — Mode A + both pallas_lab helpers guarded; uniforms shape validated; guard test covers both entry points, now CPU-runnable | `e3f5806` |
+| S1 (SOL-01) | `FIXED` — terminal rows return the reset observation (AutoResetWrapper convention); new pure-djinn contract test forces both termination paths; replay gate asserts coherence at terminal rows | `f21bca4` |
+| S5 (SOL-08) | `FIXED` — expected_tries clamped like geometric_tries; edge tests to subnormal p | `9fbc16e` |
+| S6 (SOL-09) | `FIXED` — alias-table input validation + post-build invariants; invalid-input tests | `9fbc16e` |
+| E3 / SOL-05(soko) | `CONFIRMED + FIXED` — HLO showed 0 obs-shape ops (ours) vs 20 (jumanji); runner now carries outputs, HLO symmetric 20/20; honest cost 1.63× measured ABBA (`data/e3_soko_dce_ab.jsonl`); README carries the inflation caveat until the next official sweep | `51576e2` |
+| S3 (SOL-04) | `FIXED` — strict/fail-closed default (GPU assert, engine failures exit nonzero), complete-matrix requirement in sweep_stats, absolute --out, provenance in every JSON row; pinned by tests/test_bench_strict.py | `0ba3351` |
+| S7 (SOL-05 labeling) | `FIXED` — mega row labeled rng="counter-hash"; end-to-end vs matched-protocol disclosed in bench docstring incl. _fresh_inputs transient (claim verified: single exp-1 tile) | `0ba3351` |
+| D2 + S2 | `FIXED` — stop-before-megakernel rule rewritten as disproven in LEARNINGS §2, WRITING_FAST_ENVS rung 4, PORTING_PLAYBOOK (rung-4 structural checklist added); README episode-boundary contract now per-reference (TTT=pgx freeze, 2048/soko=jumanji autoreset) | docs commit below |
+| D3 | `FIXED` — MEGAKERNEL_PLAN historical banner incl. P1's disproof of "free in registers" | docs commit below |
+| D4 + D14 | `FIXED` — README provenance block (date, pre-P1 kernel bias, E3 soko inflation) + pointer to RESULTS_HISTORY/data | docs commit below |
+| D7 (SOL-13) | `FIXED` — canonical count (36) lives in HOW_TO_RUN only; README/other mentions non-numeric | docs commit below |
+
 **Amended work plan:**
 
 - **Batch A adds:** S1 (soko obs + gate extension), S5, S6, S3

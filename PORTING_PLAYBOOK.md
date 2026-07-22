@@ -49,17 +49,28 @@ between your env and the null env is what your logic costs.
 2. **LUT-ify** every ≤16-bit sub-state from your census: precompute the
    total function (result + reward + changed) in numpy at import;
    runtime = pack → gather → unpack.
-3. **Megakernel** (rung 4) — ONLY when your env at huge B is still
-   slower than the null floor and steps are sequential-per-env: port the
-   step to structure-of-arrays lanes (the SAME jnp function runs
-   in-kernel and under lax.scan → bit parity for free), counter-hash RNG
-   (`ctrhash(env_id, t, salt, seed)` — state-free), grid over env
-   blocks, fori over steps. Expect ~2-7× over your best XLA and know the
-   costs: ~30s compiles, hardware-generation-specific lowering, and a
-   2-4× chunk tax if the training loop splits rollouts (chunk coarsely).
+3. **Megakernel** (rung 4) — do NOT gate this on "still slower than the
+   null floor": that rule is disproven (LEARNINGS §2/§6 — 2048-LUT had
+   reached the floor and the megakernel still won ~5-7.6×, because the
+   floor itself is an XLA artifact the persistent kernel deletes).
+   Eligibility is structural. **Rung-4 checklist — climb when ALL hold:**
+   - rollout is sequential-per-env (scan over steps), envs independent;
+   - the whole per-env state fits in registers (~16-32 int32 lanes —
+     count before writing a line; our 2048 uses 16);
+   - the step is elementwise/branchless on those lanes — no cross-env
+     ops, and no big LUT gathers (gathers are XLA's strength and a
+     kernel DSL's weakness; recompute logic in-register instead);
+   - B is large enough to fill the GPU in blocks (ours: 128/block);
+   - you accept the costs: ~30s compiles, hardware-generation-specific
+     lowering, and a 2.2-3.9× chunk tax if the training loop splits
+     rollouts (chunk coarsely).
+   Port the step to structure-of-arrays lanes (the SAME jnp function
+   runs in-kernel and under lax.scan → bit parity for free), counter-hash
+   RNG (`ctrhash(env_id, t, salt, seed)` — state-free), grid over env
+   blocks, fori over steps. Expect ~2-8× over your best XLA.
 
-Stop when your game runs as fast as tic-tac-toe at B=65536 — the logic
-is free, and further effort belongs to the training loop, not the env.
+Below rung 4, stop when your game runs as fast as tic-tac-toe at
+B=65536 — XLA-side effort past that point chases a floor rung 4 removes.
 
 (Shipped-code note: this repo's sokoban deliberately keeps the FULL-GRID
 form, not the entity list the lesson above derives — work-parity with

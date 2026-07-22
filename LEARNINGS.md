@@ -30,7 +30,7 @@ Update it every time a claim is confirmed, killed, or bounded.
    property test quantifies both directions over the whole action space:
    illegal ⇒ leaf-identical no-op, legal ⇒ documented effect.
 
-## 2. The escalation ladder (apply in order, stop when at the floor)
+## 2. The escalation ladder (apply in order — rung 4 moves the floor itself)
 
 1. **Branchless rewrite** — replace loops/switches with compact
    (rank-scatter), unrolled fixed-length passes, orientation canonicalization
@@ -42,15 +42,25 @@ Update it every time a claim is confirmed, killed, or bounded.
    (a 2048 row = 4 nibbles = 16 bits), precompute EVERYTHING about it in
    numpy at import and turn runtime into pack → gather → unpack. 384KB of
    tables beats any amount of clever arithmetic.
-4. **Custom kernel (Pallas)** — only if steps 1-3 leave you above the
-   platform floor. Test: is your complex game as fast as your trivial
-   game at huge B? If yes, the logic is already free — a kernel can only
-   chase the same launch/bandwidth/RNG floor. (2048-LUT hit TTT speed at
-   B=65536 → Pallas not warranted.)
+4. **Persistent kernel (Pallas)** — the rung that removes the floor the
+   others stop at. We originally taught "if your complex game is as fast
+   as your trivial game at huge B, a kernel can't help — it chases the
+   same floor." **That rule is DISPROVEN by our own measurement** (§6):
+   2048-LUT had hit TTT speed at B=65536, and the persistent megakernel
+   still delivered ~5-7.6× over it — because the "platform floor" is an
+   XLA artifact (per-step kernel launches + HBM state materialization
+   between ops), not a hardware limit. A persistent kernel holds state
+   in registers and launches once per rollout; it doesn't chase that
+   floor, it deletes it. Eligibility is structural, not floor-based —
+   see PORTING_PLAYBOOK's rung-4 checklist. Expect ~2-8× over your best
+   XLA when the step fits in registers; costs: 30s+ compiles,
+   hardware-generation-specific lowering, 2.2-3.9× chunk tax if the
+   training loop splits rollouts.
 
 Measured on 2048 vs jumanji (within-run): branchless ≈ 7-13×,
-+LUT ≈ 15-61× depending on B. TTT (trivially branchless already) ≈ 1× —
-the discipline is free when logic is simple and decisive when it isn't.
++LUT ≈ 15-61× depending on B, megakernel ≈ 100-270×. TTT (trivially
+branchless already) ≈ 1× — the discipline is free when logic is simple
+and decisive when it isn't.
 
 ## 3. Measurement methodology (non-negotiable order)
 
