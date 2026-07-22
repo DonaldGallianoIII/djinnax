@@ -316,3 +316,87 @@ D8 A/B table, D9 agent rules, D10 banners, D11, D12, D13.
 
 Headline table updates only from a quiet-window official sweep after
 Batch B settles.
+
+---
+
+## Addendum — cross-model audit (2026-07-21)
+
+Before remediation began, an independent audit ran with a **different
+model family** (OpenAI Codex / GPT-Sol), blind to this ledger by
+explicit instruction — see
+`ChatGptSolAudits/INDEPENDENT_STATIC_AUDIT_2026-07-21.md`. Rationale:
+all three Fable passes (author + two R2 reviewers) share priors; a
+different family is adversarial in a way another same-family pass is
+not. Every claim below was re-verified against source before triage.
+
+**Convergent (validates this ledger):** SOL-03 ≡ E4, SOL-05(soko) ≡ E3,
+SOL-13 ≡ D7, PERF-01 ≡ E1/E2. Two blind reviews from different model
+families independently landed on the same headline items.
+
+**New, confirmed, adopted into the plan:**
+
+- **S1 (SOL-01, High)** — `sokoban.py` terminal rows return the
+  pre-reset observation with the post-reset state; the jumanji
+  `AutoResetWrapper` we benchmark against returns the RESET observation,
+  and the parity gate skips terminal rows (`if not j_done`), hiding the
+  divergence. **Decision (owner):** match the jumanji wrapper — return
+  the reset observation on terminal rows; extend the parity gate across
+  terminal rows (the gate exclusion is the bug's camouflage; removing it
+  is the binding gate). Status: `OPEN`.
+- **S2 (SOL-02, docs half)** — README claims all envs auto-reset; TTT
+  freezes (correct: pgx parity), 2048/soko auto-reset (correct: jumanji
+  parity). Behavior stands; the docs get an honest per-env contract
+  table (TTT = pgx-style external reset; 2048/soko = jumanji-style
+  autoreset with `terminated` as transition metadata). Status: `OPEN`.
+- **S3 (SOL-04, High)** — official bench path fails open: per-engine
+  exceptions print FAILED and exit 0; `sweep_stats` aggregates partial
+  matrices; backend never asserted; `--out` relative paths resolve
+  against different cwds in parent vs child. Fix: `--strict` default
+  for sweep-invoked runs (assert GPU backend, fail on any engine
+  failure, require complete (run, B, engine) matrix), record
+  backend/device/jax-version/commit in every JSON row, resolve `--out`
+  absolute; keep `--best-effort` for exploratory runs. Status: `OPEN`.
+- **S4 (SOL-06)** — focused A/B scripts interleave but in fixed A-then-B
+  order; counterbalance to ABBA before any Batch B sweep so all new
+  sub-2× numbers use the stronger protocol. Status: `OPEN`.
+- **S5 (SOL-08)** — `expected_tries` has the same unclamped
+  `int32(ceil(1/p))` overflow R1-C1 fixed in `geometric_tries`; the
+  sibling was missed. Clamp identically + edge tests. Status: `OPEN`.
+- **S6 (SOL-09)** — `build_alias_table` accepts empty/negative/NaN/
+  all-zero weights silently (all-zero → NaN tables of plausible shape).
+  Host-side, validation is free. Status: `OPEN`.
+- **S7 (SOL-05, mega labeling)** — `--rng` is recorded in the
+  megakernel's JSON rows though it does not affect the kernel RNG;
+  also verify the `_fresh_inputs` spawn-distribution claim (all tiles
+  exponent 1 vs engine's 0.9/0.1). Fix the receipt labeling; disclose
+  or align the init. Status: `OPEN`.
+- **S8 (SOL-10, Low)** — counter-RNG env-ids are launch-local; no
+  global offset for multi-device. Single-GPU by project policy —
+  docstring caveat + optional `env_id_base` if free. Status: `OPEN`.
+- **S9 (SOL-12, Low)** — `import djinnax` eagerly builds the 65k LUT +
+  256 levels + device arrays. Measure import cost first; lazify only if
+  it matters. Status: `OPEN`.
+- **S10 (SOL-07 framing)** — exp-15 LUT saturation is pinned by
+  `check_2048_exp15_divergence`, but "rare ≠ unreachable": upgrade the
+  disclosure to state the variant is bounded and what happens past the
+  bound. Docs item. Status: `OPEN`.
+- **S11 (SOL-11 framing)** — soko fixtures are unvalidated throughput
+  levels by design; document the level distribution as part of the env
+  spec so a training user isn't ambushed. Docs item. Status: `OPEN`.
+- **P-S1 (PERF-02)** — batch-gated soko reset:
+  `lax.cond(jnp.any(done), reset, no_reset)` — sanctioned batch-level
+  cond; cheap A/B alongside Batch B. Hypothesis only. Status: `OPEN`.
+- **P-S2 (PERF-03)** — entity-list Sokoban core (agent + 4 box coords
+  vs two 100-cell grids). **Decision (owner): parked on the deferred
+  list** — new workload needs its own end-to-end gate; measure the
+  cheap items first. Status: `DEFERRED`.
+
+**Amended work plan:**
+
+- **Batch A adds:** S1 (soko obs + gate extension), S5, S6, S3
+  (fail-closed sweep + paths + S7 labeling), S2 folded into D2/D4's
+  docs pass.
+- **Batch B adds:** S4 FIRST (ABBA counterbalance lands before any new
+  sweep), P-S1 after E1/E2 settle.
+- **Batch C adds:** S8–S11 disclosure/docs items; P-S2 onto the
+  deferred list.
