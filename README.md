@@ -11,25 +11,30 @@ control flow the reference keeps in its hot path, ending at a persistent
 
 | B | tic-tac-toe | sokoban | 2048 branchless | 2048 LUT | 2048 megakernel |
 |---:|---|---|---|---|---|
-| 64 | 1.1× | 1.5× | 34.6× | 56.3× | **98×** |
-| 1,024 | 1.1× | 2.2× | 22.6× | 48.1× | **213×** |
-| 8,192 | 1.2× | 3.0× | 14.8× | 49.4× | **237×** |
-| 65,536 | 1.7× | 2.4× | 6.2× | 14.9× | **91×** |
+| 64 | 1.1× | 1.4× | 33.9× | 33.2× | **239×** |
+| 1,024 | 1.2× | 1.5× | 25.2× | 31.7× | **213×** |
+| 8,192 | 1.1× | 2.8× | 22.7× | 21.9× | **240×** |
+| 65,536 | 1.2× | 1.2× | 8.0× | 13.8× | **57×**† |
 
 Within-run ratios vs the reference implementation, medians of an n=5
-frozen-code sweep on a quiet RTX 4070 (full intervals + history in
-`docs/RESULTS_HISTORY.md`, raw rows in `data/sweep_official_v2.jsonl`).
-Peak absolute: **1.9B env-steps/s** for full 2048 games, RNG included,
-in one kernel launch.
+frozen-code fresh-process sweep on an RTX 4070 (full intervals +
+history in `docs/RESULTS_HISTORY.md`, raw rows in
+`data/sweep_official_v3.jsonl`). Peak absolute observed: **2.5B
+env-steps/s** for full 2048 games, RNG included, in one kernel launch
+(contended-run median 1.7B).
 
-*Provenance (honesty policy):* measured 2026-07-21. Two known biases
-relative to the current tree, both to be replaced by the next
-quiet-window sweep: the megakernel column predates the orient-select
-kernel (review P1, ~1.5× kernel-side — the current kernel is FASTER
-than this table), and the sokoban column predates the live-outputs
-runner fix (review E3 — our side was ~1.6× inflated by dead-code
-elimination, so the current honest ratio is LOWER; receipt in
-`data/e3_soko_dce_ab.jsonl`).
+*Provenance (honesty policy):* measured 2026-07-21 on the current tree
+(analytic-mask kernel + live-output sokoban runner); the host held
+~2.4GB VRAM throughout — permanent on this machine. †The megakernel
+row at B=65,536 is a **lower bound**: the per-run receipts are bimodal
+(three runs host-time-sliced at 50-57×, two at 87-88×) — the
+persistent kernel loses ~3× to time-slicing that barely moves the
+small-op engines. Direct head-to-head receipts put the current kernel
+at **2.9-3.3× the kernel that measured 91×/1.93B on a verified-quiet
+GPU** (`data/p1_orient_ab.jsonl`, `data/e1_megakernel_canmask_ab.jsonl`,
+`data/e5_rowmove_ab.jsonl`). The sokoban column is honestly LOWER than
+earlier tables: the old runner let the compiler delete its output
+work, inflating it ~1.63× (`data/e3_soko_dce_ab.jsonl`).
 
 ## Thirty seconds of usage
 

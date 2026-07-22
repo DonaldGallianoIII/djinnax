@@ -170,6 +170,60 @@ references. (3) The paradigm spectrum stands, now with a fourth point:
 ttt ~1×, sokoban ~2-3×, 2048 XLA-style 6-56×, environment-on-chip
 ~90-240×.
 
+## OFFICIAL v3 (2026-07-21 night — post-R2 tree; supersedes the FINAL
+table above for the CURRENT code)
+
+n=5 frozen-code fresh-process sweep at commit `ce8f70f`-era
+Development: analytic-mask kernel (E1) + 9-bubble row move (E5) +
+analytic XLA masks (E2) + live-output sokoban runner (E3 fix) + strict
+fail-closed pipeline (S3). Host held ~2.4GB VRAM throughout (permanent
+on this machine). Raw rows: `sweep_official_v3.jsonl` (now with
+backend/device/jax/commit provenance per row).
+
+Within-run ratios djinn/reference, median [min..max]:
+
+| B | ttt | sokoban | 2048 branchless | 2048 LUT | **2048 megakernel** |
+|---:|---|---|---|---|---|
+| 64 | 1.1× | 1.4× | 33.9× [19.7..92.4] | 33.2× | **239.1×** [186..341] |
+| 1024 | 1.2× | 1.5× | 25.2× | 31.7× [14.8..105] | **213.3×** [208..447] |
+| 8192 | 1.1× | 2.8× [1.3..5.5] | 22.7× | 21.9× | **240.1×** [78..309] |
+| 65536 | 1.2× | 1.2× [1.0..1.3] | 8.0× [5.9..9.2] | 13.8× | **56.6×** [50..88]† |
+
+Absolute (medians): megakernel 827M env-steps/s at B=8192, 1.71B at
+65536 — **peak observed 2.53B** (both r3/r4 at 65536); branchless 2048
+227M, LUT 398M, ttt 846M, sokoban 577M at 65536.
+
+Notes:
+1. **†The 65536 megakernel row is a LOWER BOUND — 3/5 runs were
+   host-time-sliced.** Per-run ratios are bimodal: 50/57/52× (r0-r2,
+   mega at 1.4-1.7B) vs 88/87× (r3-r4, mega at 2.53B). The persistent
+   kernel loses ~3× to time-slicing that barely moves the small-op
+   engines (same asymmetry that discarded an earlier re-sweep). The
+   kernel's real progression is pinned by direct same-process A/Bs:
+   current kernel = ×1.51-1.57 (P1) × 1.85 (E1) × 1.13 (E5) ≈ **2.9-3.3×
+   the kernel that measured 91×/1.93B on a verified-quiet GPU** —
+   receipts p1_orient_ab / e1_megakernel_canmask_ab / e5_rowmove_ab.
+   A verified-quiet re-sweep would be expected to read ~3× the v2 mega
+   row at 65536; not yet certified, so not claimed.
+2. **Sokoban is honestly DOWN from v2** (2.4×→1.2× at 65536): the v2
+   runner discarded obs/reward/extras and XLA deleted that work
+   (HLO receipt in the E3 ledger entry; measured inflation 1.63×,
+   data/e3_soko_dce_ab.jsonl). v3 is the first sweep where both soko
+   engines carry equivalent live outputs. The remaining 1.0-1.3× at
+   65536 is the honest paradigm delta on reference code that was
+   already select-based.
+3. **2048 XLA engines are UP where E2 bites**: branchless 14.8×→22.7×
+   at 8192 and 6.2×→8.0× at 65536 (the analytic mask deleted 4 of its
+   5 per-step move passes). LUT moved less (its mask was already a
+   gather) and its small-B medians moved with contention noise — the
+   LUT-vs-branchless ordering at B≤8192 is within the run spread, don't
+   read a regression into it.
+4. 2048/jumanji itself read ~35% faster at 65536 than in v2 (21.3M→
+   28.8M) — environmental, both sweeps' reference code identical; the
+   ratio moves accordingly. Within-run ratios remain the only numbers
+   we compare across time, and even they carry this caveat at the
+   largest B.
+
 ## Repro
 
 ```
