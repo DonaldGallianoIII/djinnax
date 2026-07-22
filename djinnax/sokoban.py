@@ -148,8 +148,8 @@ class DjinnSokoban:
         )
         done = solved | (new_count >= TIME_LIMIT)
 
-        # Observation + extras (matches jumanji's per-step outputs)
-        obs = jnp.stack([new_v, state.fixed_grid], axis=-1)      # (B,10,10,2)
+        # Extras describe the transition just taken (terminal values on
+        # terminal rows) — jumanji AutoResetWrapper keeps these too.
         extras = {
             "prop_correct_boxes": n_after.astype(jnp.float32) / N_BOXES,
             "solved": solved,
@@ -165,4 +165,13 @@ class DjinnSokoban:
             step_count=jnp.where(done, 0, new_count).astype(jnp.int16),
             terminated=done,
         )
+        # Observation describes the RETURNED state — on terminal rows that
+        # is the freshly reset level, matching jumanji's AutoResetWrapper
+        # (reward/extras stay those of the terminal transition). Audit S1:
+        # previously terminal rows paired the pre-reset observation with
+        # the post-reset state, so a policy acting on obs would act on a
+        # level that no longer existed.
+        obs = jnp.stack(
+            [new_state.variable_grid, new_state.fixed_grid], axis=-1
+        )                                                        # (B,10,10,2)
         return new_state, reward, obs, extras

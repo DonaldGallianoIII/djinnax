@@ -225,6 +225,17 @@ def check_sokoban(n_episodes: int = 40, seed: int = 4) -> None:
                     np.asarray(ts.observation.grid), np.asarray(dobs[0])
                 ), f"ep {ep} t {t}: obs mismatch"
             else:
+                # Audit S1: terminal rows return the RESET observation
+                # (jumanji AutoResetWrapper convention) — obs must
+                # describe the returned, already-reset state. Raw
+                # jumanji has no reset here to compare against; the
+                # binding property is state/obs coherence.
+                assert np.array_equal(
+                    np.asarray(dobs[0, ..., 0]), np.asarray(ds.variable_grid[0])
+                ), f"ep {ep} t {t}: terminal obs != returned variable grid"
+                assert np.array_equal(
+                    np.asarray(dobs[0, ..., 1]), np.asarray(ds.fixed_grid[0])
+                ), f"ep {ep} t {t}: terminal obs != returned fixed grid"
                 break
     print(f"Sokoban parity OK — {n_episodes} episodes, grids/agent/rewards/done identical")
 
