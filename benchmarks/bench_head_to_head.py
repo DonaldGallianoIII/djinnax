@@ -214,20 +214,34 @@ def make_soko_djinn(B, n_steps):
 
     game = DjinnSokoban()
     state0 = game.init(_root_key(0), B)
+    # Live-output symmetry (review E3 / audit SOL-05): jumanji's runner
+    # carries its TimeStep through the scan, keeping observation/reward/
+    # extras live in the compiled graph. Discarding ours let XLA DCE the
+    # whole output surface (HLO before this fix: 0 ops with the
+    # (B,10,10,2) obs shape on our side vs 20 on jumanji's). Carry the
+    # per-step outputs so both engines do the work their API promises.
+    obs_shape = (B,) + state0.fixed_grid.shape[1:] + (2,)
+    out0 = (
+        jnp.zeros((B,), jnp.float32),                       # reward
+        jnp.zeros(obs_shape, jnp.uint8),                    # obs
+        {"prop_correct_boxes": jnp.zeros((B,), jnp.float32),
+         "solved": jnp.zeros((B,), jnp.bool_)},             # extras
+    )
 
     def one_step(carry, i):
-        state, key = carry
+        state, _, key = carry
         k = jax.random.fold_in(key, i)
         action = jax.random.randint(k, (B,), 0, 4)
-        state, _, _, _ = game.step(state, action, jax.random.fold_in(k, 1))
-        return (state, key), None
+        state, reward, obs, extras = game.step(state, action, jax.random.fold_in(k, 1))
+        return (state, (reward, obs, extras), key), None
 
     @jax.jit
-    def runner(state, key):
-        (state, _), _ = lax.scan(one_step, (state, key), jnp.arange(n_steps), unroll=UNROLL)
-        return state
+    def runner(carry, key):
+        state, out = carry
+        (state, out, _), _ = lax.scan(one_step, (state, out, key), jnp.arange(n_steps), unroll=UNROLL)
+        return state, out
 
-    return state0, runner
+    return (state0, out0), runner
 
 
 def make_2048_megakernel(B, n_steps):
