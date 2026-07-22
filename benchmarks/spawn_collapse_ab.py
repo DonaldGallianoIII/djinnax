@@ -33,6 +33,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import lax
 
+from benchmarks.ab_timing import abba_ratios
 from djinnax.game2048 import Djinn2048, _spawn as spawn_collapsed
 from djinnax.runtime import sample_uniform_legal
 
@@ -118,12 +119,24 @@ def bench_full_games(B, rounds=8):
     key = jax.random.PRNGKey(42)
     s_c = jax.block_until_ready(r_c(s_c, key))
     s_r = jax.block_until_ready(r_r(s_r, key))
+    # states thread through rounds; boxed so the ABBA thunks can update them
+    box = {"r": s_r, "c": s_c, "i": 0}
+
+    def run_r():
+        k = jax.random.fold_in(key, box["i"])
+        box["r"] = r_r(box["r"], k)
+        return box["r"]
+
+    def run_c():
+        k = jax.random.fold_in(key, box["i"])
+        box["c"] = r_c(box["c"], k)
+        return box["c"]
+
     ratios = []
     for i in range(rounds):
-        k = jax.random.fold_in(key, i)
-        t0 = time.perf_counter(); s_r = jax.block_until_ready(r_r(s_r, k)); tr = time.perf_counter() - t0
-        t0 = time.perf_counter(); s_c = jax.block_until_ready(r_c(s_c, k)); tc = time.perf_counter() - t0
-        ratios.append(tr / tc)
+        box["i"] = i
+        r, _ = abba_ratios(run_r, run_c, 1)
+        ratios.extend(r)
     print(f"B={B:<6d} full games — collapsed speedup over rejection: "
           f"median {statistics.median(ratios):.2f}x [{min(ratios):.2f} .. {max(ratios):.2f}]")
 
@@ -141,9 +154,8 @@ def bench_worst_case(B=8192, rounds=8):
     ratios = []
     for i in range(rounds):
         k = jax.random.fold_in(jax.random.PRNGKey(1), i)
-        t0 = time.perf_counter(); jax.block_until_ready(f_r(board, k, en)); tr = time.perf_counter() - t0
-        t0 = time.perf_counter(); jax.block_until_ready(f_c(board, k, en)); tc = time.perf_counter() - t0
-        ratios.append(tr / tc)
+        r, _ = abba_ratios(lambda: f_r(board, k, en), lambda: f_c(board, k, en), 1)
+        ratios.extend(r)
     print(f"B={B:<6d} spawn-only, 1 empty cell — collapsed speedup: "
           f"median {statistics.median(ratios):.2f}x [{min(ratios):.2f} .. {max(ratios):.2f}]")
 

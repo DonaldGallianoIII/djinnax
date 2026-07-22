@@ -23,6 +23,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
+from benchmarks.ab_timing import abba_ratios
 from benchmarks.bench_head_to_head import UNROLL, _root_key
 from djinnax.sokoban import DjinnSokoban
 
@@ -51,11 +52,7 @@ def _pair(Bn, n_steps, rounds):
     key = _root_key(1)
     jax.block_until_ready(ra(sa, key))
     jax.block_until_ready(rb(sb, key))
-    ratios, tb = [], None
-    for _ in range(rounds):
-        t0 = time.perf_counter(); jax.block_until_ready(ra(sa, key)); ta = time.perf_counter() - t0
-        t0 = time.perf_counter(); jax.block_until_ready(rb(sb, key)); tb = time.perf_counter() - t0
-        ratios.append(ta / tb)
+    ratios, tb = abba_ratios(lambda: ra(sa, key), lambda: rb(sb, key), rounds)
     return {
         "B": Bn, "pair": "recount->carry",
         "ratio_median": statistics.median(ratios),

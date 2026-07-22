@@ -27,6 +27,7 @@ _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 import jax
 import jax.numpy as jnp
 
+from benchmarks.ab_timing import abba_ratios
 from djinnax.megakernel import N_STEPS, _fresh_inputs, step_lanes_allmoves
 from djinnax.megakernel_rng import run_megakernel_rng
 
@@ -46,11 +47,7 @@ def bench(Bn: int, rounds: int = 8):
     for a, b, name in zip(rn, ro, ("board", "score", "done")):
         assert jnp.array_equal(a, b), f"variant divergence: {name}"
 
-    ratios, t_new = [], None
-    for _ in range(rounds):
-        t0 = time.perf_counter(); jax.block_until_ready(old(board, seed)); t_old = time.perf_counter() - t0
-        t0 = time.perf_counter(); jax.block_until_ready(new(board, seed)); t_new = time.perf_counter() - t0
-        ratios.append(t_old / t_new)
+    ratios, t_new = abba_ratios(lambda: old(board, seed), lambda: new(board, seed), rounds)
     return {
         "B": Bn,
         "ratio_median": statistics.median(ratios),
