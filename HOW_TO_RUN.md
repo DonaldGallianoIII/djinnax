@@ -53,7 +53,7 @@ set it locally too if you want the strict behavior.
 |---|---|---|
 | `python checks/check_parity.py` | all engines ≡ pgx/jumanji move-for-move | no (slow-ok on CPU) |
 | `python checks/check_megakernel.py` | megakernel battery: chain link, determinism, chaining, adversarial, RNG | yes |
-| `pytest tests/ -q` | the same gates, CI-shaped — 36 tests (canonical count; GPU-kernel tests skip on CPU, reference-parity tests skip without the clones) | optional |
+| `pytest tests/ -q` | the same gates, CI-shaped — 41 tests (canonical count; GPU-kernel tests skip on CPU, reference-parity tests skip without the clones) | optional |
 | `python benchmarks/bench_head_to_head.py` | one bench run, all engines, within-run ratios | yes |
 | `python benchmarks/sweep_stats.py --n 5` | the OFFICIAL numbers: n fresh-process runs, median [min..max] | yes |
 | `python benchmarks/floor_bench.py` | runtime-floor probe (NullEnv) + protocol A/B | yes |
@@ -61,7 +61,31 @@ set it locally too if you want the strict behavior.
 | `python -m djinnax.megakernel_rng` | megakernel parity + RNG battery + headline benches | yes |
 
 Useful flags on `benchmarks/bench_head_to_head.py`: `--batches 64 1024 8192 65536`,
-`--unroll N`, `--rng threefry2x32|rbg|unsafe_rbg`, `--json out.jsonl`.
+`--unroll N`, `--rng threefry2x32|rbg|unsafe_rbg`, `--json out.jsonl`,
+`--best-effort` (default is strict: non-GPU backend or any engine
+failure exits nonzero — official sweeps must fail closed).
+
+## The A/B receipt scripts (all GPU)
+
+Every adopt/kill/null decision in the docs traces to one of these, run
+as `for i in 1 2 3 4 5; do python benchmarks/<script> --json data/<receipt>.jsonl; done`
+(fresh process per run, counterbalanced ABBA rounds via
+`benchmarks/ab_timing.py`). Raw rows live in `data/*.jsonl` — one file
+per experiment, kept forever.
+
+| script | decision it settled | receipt |
+|---|---|---|
+| `canmask_analytic_ab.py` | analytic legality predicate (ADOPTED, both XLA engines) | data/e2_canmask_analytic_ab.jsonl |
+| `megakernel_canmask_ab.py` | analytic mask in-kernel (ADOPTED) | data/e1_megakernel_canmask_ab.jsonl |
+| `megakernel_rowmove_ab.py` | 9-bubble row move (ADOPTED) | data/e5_rowmove_ab.jsonl |
+| `megakernel_orient_ab.py` | orient-select vs all-moves kernel (ADOPTED, P1) | data/p1_orient_ab.jsonl |
+| `orient_gather_ab.py` | permutation-gather orientation (ADOPTED, P4) | data/p4_orient_gather_ab.jsonl |
+| `spawn_variants_ab.py` | rank-pick spawn + direct reset (ADOPTED, P2/P3) | data/p23_spawn_ab.jsonl |
+| `spawn_collapse_ab.py` | collapsed spawn vs rejection loop (exhibit, 47-75×) | printed |
+| `canmask_ab.py` | CHANGED_LUT probe (KILLED, P5) | data/p5_canmask_ab.jsonl |
+| `soko_carry_ab.py` | carried on-target count (NULL, P6) | data/p6_soko_carry_ab.jsonl |
+| `soko_gated_ab.py` | batch-gated reset, sync+desync (KILLED, P-S1) | data/ps1_soko_gated_ab.jsonl |
+| `rng_rounds_ab.py` | 1 vs 2 fmix rounds (NULL — 2 stays, P8) | data/p8_rng_rounds_ab.jsonl |
 
 ## Measurement rules (the short version — LEARNINGS §3 is the law)
 

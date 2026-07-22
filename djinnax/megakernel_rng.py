@@ -68,7 +68,14 @@ def hash_uniform(env_id, t, j, seed, rounds=2):
     one. Both live far outside reachable step ranges and are invisible
     to the distribution batteries at tested scales; acceptable for game
     randomness, NOT for cryptographic or scientific-sampling use. A
-    64-bit pre-hash state would remove both if ever needed."""
+    64-bit pre-hash state would remove both if ever needed.
+
+    Scope caveat (audit S8): env_id is LOCAL to one launch (derived from
+    program/block indices). Two devices, hosts, or independently sharded
+    calls sharing (seed, t_offset) generate IDENTICAL streams for
+    corresponding local rows. Single-GPU by project policy; for
+    multi-device work, offset env_id per shard (env_id + shard * B_local)
+    and add a cross-shard uniqueness test before trusting results."""
     h = env_id * jnp.uint32(0x9E3779B1)
     h = h ^ (t.astype(jnp.uint32) * jnp.uint32(0x9E3779B9) + _SALTS[j])
     h = h ^ seed

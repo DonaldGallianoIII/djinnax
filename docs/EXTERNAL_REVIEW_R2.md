@@ -416,3 +416,33 @@ families independently landed on the same headline items.
   sweep), P-S1 after E1/E2 settle.
 - **Batch C adds:** S8–S11 disclosure/docs items; P-S2 onto the
   deferred list.
+
+**Batch B closeout (2026-07-21):**
+
+| item | status | commit |
+|---|---|---|
+| S4 (SOL-06) | `FIXED` — shared ABBA core (benchmarks/ab_timing.py), all 7 A/B scripts counterbalanced; landed before any Batch B measurement | `981527d` |
+| E2 | `CONFIRMED + ADOPTED` — analytic predicate default for both XLA engines; n=5 medians 1.97/1.90/2.22× branchless, 1.11/1.16/1.13× LUT (B=1k/8k/65k); exhaustive 65536-row gate + bit-identical rollouts (`data/e2_canmask_analytic_ab.jsonl`) | `043f157` |
+| E1 | `CONFIRMED + ADOPTED` — analytic mask default in the megakernel (incl. _initial_mask); n=5 medians 1.49/1.52/1.85×, 65k medians span 1.835-1.877; binding gates = jumanji-chained chain link + full-rollout equivalence vs the _move_dir mask path, per the ledger's warning (`data/e1_megakernel_canmask_ab.jsonl`) | `043f157` |
+| E5 | `CONFIRMED + ADOPTED` — 9-bubble row move (odd-even + single post-merge pass); exhaustive 65536-row bit-identity incl. reward; n=5 medians 1.06/1.08/1.13×, 14/15 run-medians >1 (`data/e5_rowmove_ab.jsonl`) | `88b6d86` |
+| E6 | `FIXED` — was_legal ≡ n_legal>0, gated over all 16 mask patterns × 4096 uniforms | `88b6d86` |
+| P-S1 (PERF-02) | `KILLED` — 0.14-0.54× in BOTH sync and desync regimes: the cond boundary breaks step fusion and materializes (B,10,10) operands every step, dwarfing the skipped sampling. Flag + two-regime script kept as the receipt (`data/ps1_soko_gated_ab.jsonl`); sanctioned-cond doctrine updated with this second failure mode | `59bfc46` |
+| E7 | `DEFERRED (rides E8)` — Mode A uniform-buffer packing only pays at B=1M (E8, deferred); Mode A is the verification mode, and the contract churn (uniforms shape touches every parity check) buys nothing until then. Implement alongside E8 with distribution gates for derived low-bit uniforms; the rcell-bias warning in this ledger stands. | — |
+| E8 | `DEFERRED` (unchanged — lands when B=1M work starts) | — |
+
+**Batch C closeout (2026-07-21):**
+
+| item | status |
+|---|---|
+| D1 + D10 | `FIXED` — full rung-4 authoring chapter (WRITING_FAST_ENVS §3c): register pre-flight, SoA lanes + int32-in-register rationale, same-function workflow with its blindness caveat, static lane rewiring, counter-RNG registry, pallas_call rules (each a shipped bug or measured cost), gate battery, costs; megakernel.py added to canonical examples; pallas_lab + MEGAKERNEL_PLAN carry guided-history banners |
+| D5 | `FIXED` — numbered pre-flight in PORTING_PLAYBOOK (register inventory with 2048's ≈22 data point + sokoban as doesn't-fit, 2-step lowering probe, scan-gated step before pallas_call) |
+| D6 | `FIXED` — receipts cross-referenced at idiom sites: rung-2 (E1/E2 receipts), rung-3 boundary (P5 kill), §2 orientation (P4), §2 sanctioned-cond (P-S1 kill), §4 (P8 null) |
+| D8 | `FIXED` — HOW_TO_RUN gains the A/B-receipt script table (11 scripts → decisions → receipts) + strict/best-effort flag docs; README maps data/ and distributions.py (D13) |
+| D9 | `FIXED` — CLAUDE.md/AGENTS.md: killed-ledger check before perf proposals (with the kill list inline), kernel battery requirement, Triton hard rules, chunk tax, receipts convention, MEGAKERNEL_PLAN read-order caveat; also fixed the agent files' own copy of the disproven stop rule (missed by D2's sweep) |
+| D11 | `FIXED` — §7 gate table gains the kernel-parity-battery row |
+| D12 | `FIXED` — §4 doctrine boundary sentence (keys for XLA envs; counter-hash in-kernel/state-free replay) |
+| S8 (SOL-10) | `FIXED` — hash_uniform docstring: launch-local env_id scope caveat + multi-device offset recipe |
+| S9 (SOL-12) | `NO CHANGE NEEDED` — measured: `import djinnax` adds 0.47s on top of jax's 0.33s (CPU), dominated by the 65k LUT build; lazifying the flat public API isn't justified at half a second per process. Revisit if worker-fleet startup becomes real cost. |
+| S10 (SOL-07) | `FIXED` — game2048_lut docstring now states the BOUNDED-variant contract explicitly (rarity is not a correctness boundary; bound pinned by check_2048_exp15_divergence) |
+| S11 (SOL-11) | `FIXED` — DjinnSokoban docstring states the level-distribution contract (encoding-validated fixtures, solvability not guaranteed, replace fixture for training curricula) |
+| P-S2 (PERF-03) | `DEFERRED` — entity-list sokoban core parked on the roadmap (owner decision); needs its own end-to-end gate as a new workload |

@@ -8,6 +8,13 @@ no merge arithmetic. Board orientation reuses game2048's verified
 _orient; everything else (spawn, analytic reset mask, state, semantics)
 comes from game2048, so parity gates cover this variant identically.
 
+THIS IS A BOUNDED VARIANT (audit S10): correct for boards with all
+exponents ≤ 15 and no mergeable 15-pair; beyond that bound it saturates
+rather than matching the unbounded engines. Rarity is not a correctness
+boundary — the bound is part of this variant's contract, pinned by
+check_2048_exp15_divergence. Use Djinn2048() (branchless) where the
+unbounded contract matters.
+
 Saturation note: exponents cap at 15 (nibble limit) — merging two 15s
 yields 15 (reward 2^15), where the branchless engine and megakernel
 produce 16 (reward 2^16), diverging from them and from jumanji's

@@ -77,9 +77,15 @@ state. The megakernel entry point is `djinnax.run_megakernel_rng`
   HOW_TO_RUN.md only, so they can't drift here); GPU-kernel tests skip
   on CPU, reference-parity tests skip if pgx/jumanji aren't set up.
 - `benchmarks/` — the
-  measurement harness (interleaved pairwise, frozen-code sweeps,
-  medians-with-spread; see LEARNINGS §3 for the methodology rules).
+  measurement harness (counterbalanced ABBA pairwise, frozen-code
+  sweeps, medians-with-spread; see LEARNINGS §3 for the methodology
+  rules) plus the focused `*_ab.py` receipt scripts (HOW_TO_RUN lists
+  them).
 - `benchmarks/pallas_lab.py` — the guided walk up to the megakernel.
+- `data/` — the receipts: one `*.jsonl` per adopt/kill/null decision,
+  raw rows from the n=5 fresh-process A/Bs the docs cite.
+- `djinnax/distributions.py` — closed-form collapse of stochastic
+  loops (geometric tries, conditional categorical, alias tables).
 
 ## Honesty policy
 

@@ -64,10 +64,21 @@ between your env and the null env is what your logic costs.
    - you accept the costs: ~30s compiles, hardware-generation-specific
      lowering, and a 2.2-3.9× chunk tax if the training loop splits
      rollouts (chunk coarsely).
-   Port the step to structure-of-arrays lanes (the SAME jnp function
-   runs in-kernel and under lax.scan → bit parity for free), counter-hash
+   **Pre-flight (numbered, do it before writing kernel code):**
+   1. Inventory per-env state in int32 registers. Known data point:
+      2048 = 16 board lanes + 4 mask bools + f32 score + done ≈ 22,
+      clean at BLOCK=128 on sm_89. Known doesn't-fit: sokoban's two
+      100-cell grids.
+   2. Compile a 2-step dummy fori_loop over YOUR lane count at
+      BLOCK=128 and confirm it lowers (pallas_lab.py exhibits show the
+      shape). A pressure failure here costs minutes, not days.
+   3. Write the step as a pure lane function and gate it under lax.scan
+      against your XLA engine BEFORE any pallas_call exists.
+   Then port: structure-of-arrays lanes (the SAME jnp function runs
+   in-kernel and under lax.scan → bit parity for free), counter-hash
    RNG (`ctrhash(env_id, t, salt, seed)` — state-free), grid over env
-   blocks, fori over steps. Expect ~2-8× over your best XLA.
+   blocks, fori over steps. Full recipe: WRITING_FAST_ENVS §3c. Expect
+   ~2-8× over your best XLA.
 
 Below rung 4, stop when your game runs as fast as tic-tac-toe at
 B=65536 — XLA-side effort past that point chases a floor rung 4 removes.

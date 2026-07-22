@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Pallas lab — learning ladder rung 4 hands-on. Educational, not a claim.
 
+GUIDED HISTORY, not the current design (review D10): the row-move
+kernel here is the superseded pre-megakernel exhibit. Build real
+kernels from WRITING_FAST_ENVS §3c (the rung-4 recipe); current kernel
+source = djinnax/megakernel*.py.
+
 Pallas = JAX's kernel DSL: you write the *body* that runs per grid tile,
 with explicit control of block shapes and memory movement, instead of
 letting XLA fuse whole-array ops. Inside a kernel you still write jnp on

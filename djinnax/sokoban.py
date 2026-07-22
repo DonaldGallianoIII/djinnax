@@ -70,6 +70,16 @@ def _count_on_target(variable, fixed):
 
 
 class DjinnSokoban:
+    """Level-distribution contract (audit S11): levels come from the
+    shared soko_levels fixture — 256 seeded random layouts validated for
+    ENCODING, not solvability. Some levels may be unsolvable; under any
+    policy their only terminal path is the 120-step time limit. This is
+    the correct workload for the head-to-head (both engines draw the
+    identical fixture) and fine for throughput/infra testing; for
+    training on guaranteed-solvable puzzles, replace the fixture with a
+    curated set (e.g. filtered Boxoban) — the env logic is
+    level-agnostic."""
+
     n_actions: int = 4
 
     def __init__(self, carry_on_target: bool = False,

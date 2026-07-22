@@ -92,6 +92,10 @@ batch-in/batch-out.
   moved    = move_left(oriented)
   board    = select_by_action([_orient(moved, a) for a in range(4)], action)
   ```
+  Measured refinement: the stack/select form above is the readable
+  version; the adopted production form is ONE permutation gather each
+  way (`_oriented_move_gather`, +5% at B=65k, null at small B —
+  data/p4_orient_gather_ab.jsonl).
 - **Terminal states are never special-cased** — they flow through the same
   step, masked. Auto-reset in-step via tree-map `where`-select against a
   template (or freeze + external template reset; pick one, test it).
@@ -247,6 +251,12 @@ analytic mask).
 
 ## 4. RNG
 
+Doctrine boundary: **threaded keys for XLA envs** (everything below);
+**counter-hash uniforms in-kernel** (rung 4, §3c) or wherever state-free
+replay matters — the two coexist, chosen by execution tier. The hash
+runs TWO fmix rounds; one round measured null-to-negative, don't
+re-propose it (data/p8_rng_rounds_ab.jsonl).
+
 - **Thread keys, never store them.** `step(state, action, key)`.
 - **One salt per consumption site**, documented in a registry comment;
   derive with `fold_in(key, SALT)`. Never reuse a salt.
@@ -294,6 +304,7 @@ analytic mask).
 | Serialization | state survives to_bytes/from_bytes with dtypes + behavior | training-repo tier* |
 | Sampler uniformity | any custom sampler is distribution-correct | floor_bench.py |
 | Distribution parity | collapsed stochastic sites ≡ the naive loop statistically | tests/test_distributions.py, benchmarks/spawn_collapse_ab.py |
+| Kernel parity battery (rung 4) | same-function bit parity, chain link, determinism, chained rollouts, adversarial boards, RNG distribution, grid guards | checks/check_megakernel.py, tests/test_megakernel.py |
 
 \* The starred rows apply when the env feeds a training loop (masked
 policies, checkpointing, long-lived jit caches). The benchmark envs in
