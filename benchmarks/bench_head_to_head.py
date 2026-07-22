@@ -17,13 +17,27 @@ Usage (GPU shim + 50% cap):
     XLA_PYTHON_CLIENT_ALLOCATOR=platform \
     $VENV/bin/python benchmarks/bench_head_to_head.py
 
-Protocol note (deliberate): every runner here uses protocol v1 —
+Protocol note (deliberate): every XLA runner here uses protocol v1 —
 per-step fold_in keys and masked-categorical action sampling — applied
 IDENTICALLY to both sides of every ratio, because symmetric overhead is
 what makes a ratio fair. runtime.py's v2 (bulk key hoist, rank-pick,
 donation) is faster in absolute terms; floor_bench.py measures that
 delta. Consequence: the ratios are the headline numbers, while absolute
 env-steps/s from THIS file are conservative for the djinn side.
+
+EXCEPTION (audit S7): the 2048/djinn-mega row is an END-TO-END SYSTEM
+measurement, not a matched-protocol one — the persistent kernel samples
+actions in-kernel (rank-pick over its counter-hash RNG), so --rng and
+the v1 sampler do not apply to it; its JSON rows are labeled
+rng="counter-hash" accordingly. Its starting boards (_fresh_inputs) are
+single-exponent-1-tile states, a one-step transient vs the engine's
+0.9/0.1 two-tile reset distribution — boards converge to the in-kernel
+reset distribution within the first episodes of the 64-step rollout.
+
+Fail-closed (audit S3): strict mode is the DEFAULT — a non-GPU backend
+or any engine failure exits nonzero so an official sweep can never
+silently lose an engine or fall back to CPU. --best-effort restores the
+exploratory keep-going behavior.
 """
 
 from __future__ import annotations
@@ -298,12 +312,35 @@ def main():
                     help="PRNG impl for all keys (all engines)")
     ap.add_argument("--json", default=None,
                     help="append one JSON line per (engine, B) to this file")
+    ap.add_argument("--best-effort", action="store_true",
+                    help="exploratory mode: tolerate CPU backend and per-engine "
+                         "failures (default is strict/fail-closed)")
     args = ap.parse_args()
     UNROLL = args.unroll
     RNG_IMPL = args.rng
 
-    print(f"backend: {jax.default_backend()}  device: {jax.devices()[0]}"
-          f"  unroll={UNROLL} rng={RNG_IMPL}")
+    backend = jax.default_backend()
+    print(f"backend: {backend}  device: {jax.devices()[0]}"
+          f"  unroll={UNROLL} rng={RNG_IMPL}"
+          f"  mode={'best-effort' if args.best_effort else 'strict'}")
+    if not args.best_effort and backend != "gpu":
+        _sys.exit(f"strict mode: backend is '{backend}', not 'gpu' — a CPU "
+                  f"fallback would silently produce non-comparable numbers "
+                  f"(pass --best-effort to run anyway)")
+
+    # Provenance stamped into every JSON row (audit S3): a row must be
+    # attributable to a machine state and tree without archaeology.
+    try:
+        import subprocess
+        _commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(_Path(__file__).resolve().parents[1]),
+            capture_output=True, text=True).stdout.strip() or "unknown"
+    except Exception:
+        _commit = "unknown"
+    prov = {"backend": backend, "device": str(jax.devices()[0]),
+            "jax": jax.__version__, "commit": _commit,
+            "steps": args.steps, "reps": args.reps}
     pairs = [
         ("ttt/pgx", make_ttt_pgx), ("ttt/djinn", make_ttt_djinn),
         ("ttt/djinn-bb", make_ttt_djinn_bb),
@@ -313,16 +350,21 @@ def main():
         ("soko/jumanji", make_soko_jumanji), ("soko/djinn", make_soko_djinn),
     ]
     records = []
+    failures = []
     for B in args.batches:
         print(f"\n--- B={B}, {args.steps} steps/scan, best of {args.reps} ---")
         speeds = {}
         for name, maker in pairs:
+            # The mega row samples in-kernel (counter-hash RNG); labeling
+            # it with --rng would claim a protocol it does not run (S7).
+            rng_label = "counter-hash" if name == "2048/djinn-mega" else RNG_IMPL
             try:
                 speeds[name] = bench(name, maker, B, args.steps, args.reps)
                 records.append({"engine": name, "B": B, "steps_per_sec": speeds[name],
-                                "unroll": UNROLL, "rng": RNG_IMPL})
+                                "unroll": UNROLL, "rng": rng_label, **prov})
             except Exception as e:
                 print(f"{name:22s} B={B:<6d} FAILED: {type(e).__name__}: {e}")
+                failures.append(f"{name} @ B={B}: {type(e).__name__}: {e}")
         for game_name, ours, theirs in [
             ("ttt", "ttt/djinn", "ttt/pgx"),
             ("ttt-bb", "ttt/djinn-bb", "ttt/pgx"),
@@ -339,6 +381,10 @@ def main():
         with open(args.json, "a") as f:
             for rec in records:
                 f.write(json.dumps(rec) + "\n")
+
+    if failures and not args.best_effort:
+        _sys.exit("strict mode: engine failures (rows above are INCOMPLETE):\n  "
+                  + "\n  ".join(failures))
 
 
 if __name__ == "__main__":

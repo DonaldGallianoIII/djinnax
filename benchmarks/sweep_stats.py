@@ -75,6 +75,17 @@ def aggregate(path):
         runs.add(rec["run"])
     runs = sorted(runs)
 
+    # Fail closed (audit S3): a partial (run, B, engine) matrix means an
+    # engine silently dropped out of some run — the medians would look
+    # statistically complete while describing different populations.
+    missing = [(e, B, r) for (e, B), d in sorted(by_engine.items())
+               for r in runs if r not in d]
+    if missing:
+        for e, B, r in missing:
+            print(f"MISSING: engine={e} B={B} run={r}")
+        sys.exit(f"incomplete sweep matrix: {len(missing)} missing "
+                 f"(engine, B, run) cells — refusing to aggregate")
+
     def fmt(v):
         return f"{v / 1e6:.2f}M" if v >= 1e6 else f"{v / 1e3:.0f}K"
 
@@ -119,9 +130,12 @@ def main():
     if args.aggregate_only:
         aggregate(args.aggregate_only)
         return
-    Path(args.out).unlink(missing_ok=True)
-    run_sweep(args.n, args.batches, args.unroll, args.rng, args.out)
-    aggregate(args.out)
+    # Absolute path: the child runs with cwd=HERE, so a relative --out
+    # would be written and read in different directories (audit S3).
+    out = str(Path(args.out).resolve())
+    Path(out).unlink(missing_ok=True)
+    run_sweep(args.n, args.batches, args.unroll, args.rng, out)
+    aggregate(out)
 
 
 if __name__ == "__main__":
