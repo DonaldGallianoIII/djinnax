@@ -5,9 +5,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+import pytest
+
 from djinnax.distributions import (
     alias_sample, build_alias_table, conditional_categorical,
-    geometric_tries,
+    expected_tries, geometric_tries,
 )
 
 N = 200_000
@@ -74,6 +76,42 @@ def test_conditional_never_selects_disallowed_at_high_u():
         jnp.asarray([[0.5, 0.5, 0.0, 0.0]] * 2),
         jnp.asarray([[False] * 4, [False, False, True, True]]))
     assert np.all(np.asarray(z) == 0), z
+
+
+def test_expected_tries_edge_inputs():
+    """Audit S5: same unclamped int32(ceil(1/p)) overflow R1-C1 fixed in
+    geometric_tries — the sibling was missed. Tiny p must saturate, not
+    cast garbage."""
+    assert int(expected_tries(1.0)) == 1
+    assert int(expected_tries(0.3)) == 4          # ceil(3.33)
+    assert int(expected_tries(1e-3)) == 1000
+    for p in (1e-9, 1e-12, 5e-40):                # 1/p far past int32
+        n = int(expected_tries(p))
+        assert 0 < n < 2 ** 31, (p, n)
+    n = np.asarray(expected_tries(jnp.asarray([1.0, 1e-3, 1e-12])))
+    assert np.all(n >= 1) and np.all(n < 2 ** 31)
+
+
+def test_alias_rejects_invalid_weights():
+    """Audit S6: all-zero weights used to divide by zero and hand back
+    NaN tables of plausible shape; negatives/NaN built nonsense."""
+    for bad in ([], [0.0, 0.0], [1.0, -2.0], [1.0, float("nan")],
+                [float("inf"), 1.0], [[1.0, 2.0]]):
+        with pytest.raises(ValueError):
+            build_alias_table(bad)
+    # single-category degenerate is VALID: always index 0
+    prob, alias = build_alias_table([7.0])
+    s = np.asarray(alias_sample(jnp.asarray([0.1, 0.9]), jnp.asarray([0.2, 0.8]),
+                                jnp.asarray(prob), jnp.asarray(alias)))
+    assert np.all(s == 0)
+    # zero-weight CATEGORY inside a valid vector never gets sampled
+    prob, alias = build_alias_table([2.0, 0.0, 1.0])
+    k1, k2 = jax.random.split(jax.random.PRNGKey(4))
+    s = np.asarray(alias_sample(jax.random.uniform(k1, (N,)),
+                                jax.random.uniform(k2, (N,)),
+                                jnp.asarray(prob), jnp.asarray(alias)))
+    assert not np.any(s == 1)
+    assert abs((s == 0).mean() - 2 / 3) < 0.01
 
 
 def test_alias_matches_weights():

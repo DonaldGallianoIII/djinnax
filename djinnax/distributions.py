@@ -95,6 +95,15 @@ def build_alias_table(weights) -> tuple[np.ndarray, np.ndarray]:
     no rejection loop).
     """
     w = np.asarray(weights, dtype=np.float64)
+    # Host-side, build-once — strict validation is free (audit S6: an
+    # all-zero or NaN weight vector previously produced NaN tables of
+    # plausible shape that only failed at sample time, statistically).
+    if w.ndim != 1 or w.size == 0:
+        raise ValueError(f"weights must be a non-empty 1-D array, got shape {w.shape}")
+    if not np.all(np.isfinite(w)) or np.any(w < 0):
+        raise ValueError("weights must be finite and non-negative")
+    if w.sum() <= 0:
+        raise ValueError("weights must have positive sum")
     k = len(w)
     prob = np.zeros(k, dtype=np.float32)
     alias = np.zeros(k, dtype=np.int32)
@@ -109,6 +118,7 @@ def build_alias_table(weights) -> tuple[np.ndarray, np.ndarray]:
         (small if scaled[l] < 1.0 else large).append(l)
     for i in small + large:
         prob[i] = 1.0
+    assert np.all((prob >= 0) & (prob <= 1)) and np.all((alias >= 0) & (alias < k))
     return prob, alias
 
 
@@ -123,5 +133,14 @@ def alias_sample(u1: jax.Array, u2: jax.Array, prob: jax.Array,
 def expected_tries(p) -> jax.Array:
     """Expectation substitution — the VARIANCE-REMOVING sibling of
     geometric_tries (always returns ~1/p). Changes the game's dynamics;
-    only for debugging/curriculum modes, never silently."""
-    return jnp.ceil(1.0 / jnp.asarray(p, dtype=jnp.float32)).astype(jnp.int32)
+    only for debugging/curriculum modes, never silently.
+
+    Same pre-cast clamp as geometric_tries (audit S5 — the sibling was
+    fixed in R1-C1, this one was missed): tiny p sends ceil(1/p) past
+    int32 range or to +inf, and the cast of either is undefined. The
+    bound 2^31-256 is the largest float32 below 2^31 (ulp there is 256).
+    Saturation, not exactness, is the contract for p < ~2^-31.
+    """
+    p = jnp.asarray(p, dtype=jnp.float32)
+    n = jnp.ceil(1.0 / p)
+    return jnp.minimum(n, 2.0 ** 31 - 256).astype(jnp.int32)
