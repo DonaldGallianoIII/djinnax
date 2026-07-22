@@ -5,7 +5,8 @@ can exist on this engine. LEARNINGS.md is *why* (evidence, methodology);
 this is *how* — the rules to follow while writing. Canonical worked
 examples: `ttt.py` (trivial), `game2048.py` + `game2048_lut.py`
 (the full ladder), `sokoban.py` (grid + entities), `runtime.py`
-(the shared loop).
+(the shared loop), `megakernel.py` + `megakernel_rng.py` (rung 4 —
+the whole rollout in one kernel; authoring recipe in §3c).
 
 **The one-sentence thesis:** you are not writing a program about one game;
 you are writing a dense array program about B games, where B is huge —
@@ -73,10 +74,16 @@ batch-in/batch-out.
   or `cond` (executes all branches + select under batching), python `if`
   on a traced value (either a trace error, or worse, a silent recompile).
 - **The one sanctioned `cond`:** batch-gating an *expensive, batch-rare*
-  block — `lax.cond(jnp.any(need), expensive, noop, state)`. Know its
-  failure mode: if envs desynchronize, `any(need)` ≈ always true and the
-  amortization collapses (measured 20× on a production training env's combat phase). Design phases to
-  stay batch-synchronized if you rely on this.
+  block — `lax.cond(jnp.any(need), expensive, noop, state)`. Two
+  measured failure modes: (1) if envs desynchronize, `any(need)` ≈
+  always true and the amortization collapses (measured 20× on a
+  production training env's combat phase); (2) the cond boundary itself
+  breaks kernel fusion and materializes its operands — if the gated
+  block is *already cheap when fused*, the gate LOSES even when it
+  skips 119 steps in 120: batch-gating sokoban's reset sampling
+  measured **0.14-0.54×** in BOTH sync and desync regimes
+  (data/ps1_soko_gated_ab.jsonl). Gate only blocks whose fused cost
+  clearly exceeds a fusion break, and measure both regimes.
 - **Orientation canonicalization**: never write per-direction logic four
   times. Transform so every case becomes one case, operate, transform
   back. The transforms are compile-time python (unrolled), self-inverse:
@@ -118,6 +125,13 @@ test and the process→distribution table: PORTING_PLAYBOOK step 1.5.
 derive its properties in closed form instead of simulating. (A fresh
 board with one tile: its legal mask is four coordinate comparisons, not
 four move simulations.) Ask of every recompute: "do I already know this?"
+The biggest single win in this repo's hardening was a rung-2 move on a
+*general* state: 2048 legality is "some adjacent pair in push order has
+`cur != 0 & (prev == 0 | prev == cur)`" — 48 comparisons replaced four
+full move simulations, measured 1.9-2.2× on the whole branchless engine
+and 1.5-1.9× inside the megakernel (data/e2_canmask_analytic_ab.jsonl,
+data/e1_megakernel_canmask_ab.jsonl). Before simulating to derive a
+boolean, try to state the boolean.
 
 **Rung 3 — LUT-ify.** When a sub-state fits in ≤ ~2^16 configurations,
 precompute the *total function* of it in numpy at import:
@@ -130,6 +144,11 @@ moved = ((out[..., None] >> SHIFTS) & 15).astype(int8) # unpack
 Runtime logic cost → zero; 384KB of tables sit in L2. Candidates: any
 row/line/neighborhood of ≤16 bits (2048 rows, TTT occupancy 9 bits,
 tetris rows, connect-4 columns, rule-based cellular updates).
+Boundary (measured, don't repeat it): LUT-ify **logic**, not a compare
+fused next to an existing gather — CHANGED_LUT, a legality gather
+riding beside MOVED_LUT, measured 0.82-0.88× and was killed
+(data/p5_canmask_ab.jsonl); the analytic predicate (rung 2 above) beat
+both. Op counts lie; measure.
 
 **Rung 4 — persistent kernel (Pallas).** NOT gated on "still above the
 floor" — that stop rule is disproven (LEARNINGS §2/§6: 2048-LUT had
@@ -139,8 +158,92 @@ traffic between ops — and a persistent kernel (state in registers, one
 launch per rollout) removes it rather than chasing it. Climb this rung
 when the PORTING_PLAYBOOK rung-4 checklist passes: rollout
 sequential-per-env, whole per-env state fits in a few dozen registers,
-step is elementwise/branchless on those lanes, B fills the GPU. See
-`pallas_lab.py` + LEARNINGS for evidence and costs.
+step is elementwise/branchless on those lanes, B fills the GPU.
+Authoring recipe: §3c below. Evidence and costs: LEARNINGS §6.
+
+## 3c. Rung 4 authoring — the persistent kernel
+
+The recipe that produced `megakernel.py`/`megakernel_rng.py`, in the
+order to execute it. (`pallas_lab.py` and MEGAKERNEL_PLAN.md are guided
+history — read them for *why*, build from *here*.)
+
+**Step 0 — the register pre-flight (before any kernel code).** Count
+your per-env state in int32 registers: 2048 = 16 board lanes + 4 mask
+bools + f32 score + bool done ≈ 22, compiles clean at BLOCK=128 on
+sm_89. Sokoban's two 100-cell grids do NOT fit — that's a known
+doesn't-fit. Then compile a 2-step dummy loop over your lane count at
+BLOCK=128 and check it lowers before writing any game logic
+(PORTING_PLAYBOOK has this as a numbered pre-flight).
+
+**Step 1 — SoA lanes.** One `(BLOCK,)` array per cell/field, not one
+`(BLOCK, N)` array: Triton's lowering has no `slice`/`.at[]` on
+in-kernel arrays, so per-cell structure must be python-level. State
+dtype flips at the boundary: **int8 in HBM, int32 in registers** — the
+"smallest dtype" doctrine (§1) is about *memory traffic*; in registers
+everything is a register wide, and int32 avoids Triton's narrow-int
+arithmetic quirks. Cast at load and store only.
+
+**Step 2 — the step as a pure lane function, gated BEFORE any kernel
+exists.** Write `step(lanes, mask, score, u) -> (lanes, mask, score,
+done)` in plain jnp on lane tuples. Run it under `lax.scan`; gate it
+against your XLA engine / reference NOW. This function will later run
+unchanged inside the kernel — the same-function trick — which makes
+kernel-vs-scan parity bit-exact *by construction*. Corollary that
+bites: that parity CANNOT catch a wrong shared component (both sides
+run the same bug). Every analytic shortcut inside the step needs its
+own gate anchored to the reference chain (e.g. the legality predicate's
+exhaustive 65536-row gate), never just kernel≡scan.
+
+**Step 3 — moves as static lane rewirings.** A direction/orientation is
+a compile-time permutation of lane indices (`_GROUPS`/`_PERM` tables
+built in python). Apply the CHOSEN move only: permute lanes by action
+(3 `where`s per slot), run ONE canonical network, inverse-permute.
+Computing all four "because registers are free" measured 0.71× — see
+the MEGAKERNEL_PLAN banner. In-register ALU is not free.
+
+**Step 4 — counter-hash RNG (Mode B).** State-free uniforms:
+`u = ctrhash(env_id, t, salt, seed)` (double-fmix32 of pure uint32
+counters — `hash_uniform` in megakernel_rng.py). One salt per
+consumption site, registry documented at the top of the kernel; size
+the registry when you write the step (2048: action, spawn cell, spawn
+value, reset cell, reset value = 5/step). `t_offset` in the seed makes
+chained launches continue the stream. Because the hash is pure jnp, the
+same-function trick covers the RNG too; gate distribution quality
+separately (tests/test_rng.py). Two fmix rounds; one measured null —
+don't re-litigate without new evidence (data/p8_rng_rounds_ab.jsonl).
+
+**Step 5 — wrap in pallas_call.** Grid = `(B // BLOCK,)`, BlockSpecs
+map block i to rows `[i*BLOCK, (i+1)*BLOCK)`; `lax.fori_loop` over
+steps INSIDE the kernel (unrolling 64 steps explodes compile time).
+Hard rules, each one a shipped bug or a measured cost:
+- **Guard `B % BLOCK != 0` with a loud ValueError** — a truncated grid
+  silently returns uninitialized tail rows (review E4).
+- **Integer shifts, not float pow**: `1 << (x+1)`, never `2.0 ** x`
+  (Triton's float pow is inexact; parity failed on it).
+- **np scalars for closure constants**: a `jnp` scalar captured by the
+  kernel closure becomes a traced constant and breaks lowering; use
+  python/np scalars.
+- **Reset in-register** (zero lanes + spawn + analytic mask), never by
+  bouncing state to HBM.
+- **Chunk coarsely**: splitting one rollout into chunked launches costs
+  2.2-3.9× (launch + state round-trips). The chaining contract: carry
+  score, recompute the mask at entry — exact ONLY because the analytic
+  mask provably equals the computed one (gated in check_megakernel).
+
+**Step 6 — the rung-4 gate battery** (all in check_megakernel.py, wired
+as tests/test_megakernel.py): chain link (lane ops ≡ the
+reference-anchored engine), same-function parity sweep across B and
+seeds, bit determinism, chained-rollout ≡ single-rollout, adversarial
+boards (deadlock/empty/saturation), RNG distribution tests, the
+B-divisibility guard. Any change to megakernel_*/step_lanes reruns the
+whole battery — no exceptions.
+
+Costs to accept up front: ~30s compiles at large B,
+hardware-generation-specific lowering (sm_89 Triton here; Mosaic needs
+Hopper), and the chunk tax above. Expected payoff when the checklist
+holds: 2-8× over your best XLA formulation (measured: 5-7.6× over the
+production LUT engine self-contained, ~1.5-1.9× more after the E1
+analytic mask).
 
 ## 4. RNG
 

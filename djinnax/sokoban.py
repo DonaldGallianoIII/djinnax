@@ -72,13 +72,23 @@ def _count_on_target(variable, fixed):
 class DjinnSokoban:
     n_actions: int = 4
 
-    def __init__(self, carry_on_target: bool = False):
+    def __init__(self, carry_on_target: bool = False,
+                 batch_gated_reset: bool = False):
         # Carrying n_on_target measured NULL (0.99-1.02x at every B, n=5
         # interleaved — data/p6_soko_carry_ab.jsonl): XLA fuses the count
         # reduction for free. Default stays the simpler recount; the flag
         # and field remain so the receipt is reproducible. Rewards are
         # bit-identical either way (exact jumanji replay gates both).
         self._carry = carry_on_target
+        # batch_gated_reset (audit PERF-02): lax.cond(any(done)) skips
+        # level sampling+gather on steps where NO env terminated. Under
+        # the bench's synchronized episodes (~1 reset step in 120) the
+        # skip is nearly free; under desynchronized training at large B,
+        # any(done) is ~always true and the cond is pure overhead —
+        # measured in both regimes (data/ps1_soko_gated_ab.jsonl).
+        # DEFAULT OFF: the head-to-head runs the synchronized regime, and
+        # a default that wins only there would inflate the published row.
+        self._batch_gated = batch_gated_reset
 
     def _sample_levels(self, key: jax.Array, B: int):
         idx = jax.random.randint(key, (B,), 0, N_LEVELS)
@@ -155,12 +165,25 @@ class DjinnSokoban:
             "solved": solved,
         }
 
-        # In-step auto-reset from the shared fixture
-        rf, rv, ra = self._sample_levels(key, B)
+        # In-step auto-reset from the shared fixture. Same-key sampling in
+        # both forms, so gated ≡ ungated bit-for-bit whenever any(done).
+        def _with_reset(op):
+            fixed, v, agent = op
+            rf, rv, ra = self._sample_levels(key, B)
+            return (jnp.where(done[:, None, None], rf, fixed),
+                    jnp.where(done[:, None, None], rv, v),
+                    jnp.where(done[:, None], ra, agent))
+
+        op = (state.fixed_grid, new_v, new_agent)
+        if self._batch_gated:
+            new_fixed, new_v, new_agent = jax.lax.cond(
+                jnp.any(done), _with_reset, lambda o: o, op)
+        else:
+            new_fixed, new_v, new_agent = _with_reset(op)
         new_state = SokoState(
-            fixed_grid=jnp.where(done[:, None, None], rf, state.fixed_grid),
-            variable_grid=jnp.where(done[:, None, None], rv, new_v),
-            agent_yx=jnp.where(done[:, None], ra, new_agent),
+            fixed_grid=new_fixed,
+            variable_grid=new_v,
+            agent_yx=new_agent,
             n_on_target=jnp.where(done, 0, n_after).astype(jnp.int32),
             step_count=jnp.where(done, 0, new_count).astype(jnp.int16),
             terminated=done,
