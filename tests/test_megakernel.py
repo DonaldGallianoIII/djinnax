@@ -41,6 +41,14 @@ def test_analytic_mask_chain_link():
     cm.check_analytic_mask_chain_link()
 
 
+def test_row_move_exhaustive():
+    cm.check_row_move_exhaustive()
+
+
+def test_was_legal_form():
+    cm.check_was_legal_form()
+
+
 def test_analytic_mask_step_equivalence():
     cm.check_analytic_mask_step()
 

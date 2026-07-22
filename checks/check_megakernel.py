@@ -100,6 +100,48 @@ def check_analytic_mask_step(Bn: int = 512, seed: int = 13):
           f"analytic vs move-derived mask path, B={Bn}")
 
 
+def check_row_move_exhaustive():
+    """E5 gate: the 9-bubble row move (odd-even pre-compaction + single
+    post-merge pass) ≡ the 18-bubble triple-pass form, EXHAUSTIVELY —
+    all 65536 possible 4-lane rows, lanes and reward bit-identical.
+    (The triple-pass form is itself jumanji-chained via
+    check_move_chain_link on the shipped kernel history.)"""
+    from djinnax.megakernel import _row_move_4, _row_move_4_triplepass
+
+    vals = np.arange(65536, dtype=np.int64)
+    rows = [jnp.asarray((vals >> (4 * i)) & 0xF, dtype=jnp.int32) for i in range(4)]
+    new = jax.jit(_row_move_4)(*rows)
+    old = jax.jit(_row_move_4_triplepass)(*rows)
+    for i, (x, y) in enumerate(zip(new, old)):
+        assert jnp.array_equal(x, y), f"E5 divergence in output {i} (of a,b,c,d,reward)"
+    print("row-move exhaustive OK — 9-bubble ≡ 18-bubble form on all 65536 rows "
+          "(lanes + reward bit-identical)")
+
+
+def check_was_legal_form(n_u: int = 4096):
+    """E6 gate: was_legal ≡ (n_legal > 0), exhaustively over all 16 mask
+    patterns x a dense u_act grid. Replays the step's rank-pick block and
+    compares the masked-or form against the count form."""
+    u = jnp.linspace(0.0, 1.0 - 2.0 ** -24, n_u)
+    for bits in range(16):
+        mask = [jnp.full((n_u,), bool(bits >> d & 1)) for d in range(4)]
+        n_legal = sum(m.astype(jnp.int32) for m in mask)
+        n_safe = jnp.maximum(n_legal, 1)
+        r = jnp.minimum((u * n_safe.astype(jnp.float32)).astype(jnp.int32), n_safe - 1)
+        csum = jnp.zeros_like(n_legal)
+        action = jnp.zeros_like(n_legal)
+        for d in range(4):
+            hit = mask[d] & (csum == r)
+            action = jnp.where(hit, d, action)
+            csum = csum + mask[d].astype(jnp.int32)
+        old_form = jnp.zeros_like(mask[0])
+        for d in range(4):
+            old_form = old_form | (mask[d] & (action == d))
+        new_form = n_legal > 0
+        assert jnp.array_equal(old_form, new_form), f"E6 divergence at mask bits {bits:04b}"
+    print(f"was_legal form OK — masked-or ≡ n_legal>0 over 16 mask patterns x {n_u} uniforms")
+
+
 def check_analytic_reset_mask():
     """The chaining feature recomputes the mask from the board at entry;
     that is exact only if the analytic single-tile mask == the computed
@@ -239,6 +281,8 @@ if __name__ == "__main__":
     check_move_chain_link()
     check_analytic_mask_chain_link()
     check_analytic_mask_step()
+    check_row_move_exhaustive()
+    check_was_legal_form()
     check_analytic_reset_mask()
     check_b_divisibility_guard()
     check_bit_determinism()

@@ -54,12 +54,7 @@ def _bubble(a, b):
     return jnp.where(z, b, a), jnp.where(z, 0, b)
 
 
-def _row_move_4(a, b, c, d):
-    """Move one 4-lane group toward lane a. Returns 4 lanes + reward."""
-    for _ in range(3):
-        a, b = _bubble(a, b)
-        b, c = _bubble(b, c)
-        c, d = _bubble(c, d)
+def _merge3(a, b, c, d):
     reward = jnp.zeros_like(a, dtype=jnp.float32)
 
     def merge(x, y, reward):
@@ -71,6 +66,42 @@ def _row_move_4(a, b, c, d):
     a, b, reward = merge(a, b, reward)
     b, c, reward = merge(b, c, reward)
     c, d, reward = merge(c, d, reward)
+    return a, b, c, d, reward
+
+
+def _row_move_4(a, b, c, d):
+    """Move one 4-lane group toward lane a. Returns 4 lanes + reward.
+
+    Bubble budget (review E5): 9, down from 18. Pre-merge compaction is
+    an odd-even transposition network — (ab)(cd),(bc),(ab)(cd),(bc), 6
+    bubbles, which fully zero-compacts ANY 4 lanes (adjacent swaps keep
+    nonzero order; 4 odd-even phases sort any binary key sequence) —
+    replacing 3 full (ab)(bc)(cd) passes (9). Post-merge, holes in a
+    compacted row can only be {},{b},{c},{d} or {b,d} (merge zeroes the
+    cur of each adjacent pair at most once and never a), and one
+    (ab)(bc)(cd) pass clears all five patterns — replacing another 9.
+    Gated exhaustively (all 65536 rows ≡ the triple-pass form) plus the
+    jumanji-anchored chain link."""
+    a, b = _bubble(a, b); c, d = _bubble(c, d)
+    b, c = _bubble(b, c)
+    a, b = _bubble(a, b); c, d = _bubble(c, d)
+    b, c = _bubble(b, c)
+    a, b, c, d, reward = _merge3(a, b, c, d)
+    a, b = _bubble(a, b)
+    b, c = _bubble(b, c)
+    c, d = _bubble(c, d)
+    return a, b, c, d, reward
+
+
+def _row_move_4_triplepass(a, b, c, d):
+    """Pre-E5 form: 3 full bubble passes each side of the merge (18
+    bubbles). Kept as the reference for the exhaustive E5 gate and the
+    A/B receipt."""
+    for _ in range(3):
+        a, b = _bubble(a, b)
+        b, c = _bubble(b, c)
+        c, d = _bubble(c, d)
+    a, b, c, d, reward = _merge3(a, b, c, d)
     for _ in range(3):
         a, b = _bubble(a, b)
         b, c = _bubble(b, c)
@@ -221,9 +252,11 @@ def _make_step(apply_move, mask_fn=_mask_analytic):
             hit = mask[d] & (csum == r)
             action = jnp.where(hit, d, action)
             csum = csum + mask[d].astype(jnp.int32)
-        was_legal = jnp.zeros_like(mask[0])
-        for d in range(4):
-            was_legal = was_legal | (mask[d] & (action == d))
+        # E6: rank-pick selects a legal direction whenever one exists
+        # (r < n_legal walks csum onto a set mask bit), and action stays
+        # 0 with mask[0] false otherwise — so was_legal ≡ n_legal > 0.
+        # Gated by full-rollout equivalence vs the masked-or form.
+        was_legal = n_legal > 0
 
         # 2. apply the chosen move (variant point: oriented vs all-moves)
         new_lanes, reward = apply_move(lanes, action)
