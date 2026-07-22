@@ -66,6 +66,26 @@ is the guided on-ramp. Costs, stated up front: ~30s compiles,
 hardware-generation-specific lowering, and a 2.2-3.9× tax if you chunk
 rollouts — chunk coarsely.
 
+**Scope — what fits, stated plainly.** The register tier holds a few
+hundred bytes of state per env at most (2048 uses ~22 int32 registers
+≈ 90 bytes; the file tops out around 100-200 int32s per thread, with
+occupancy loss as you grow). That is exactly the scale of board, card,
+puzzle, and gridworld games — chess bitboards ≈ 24 int32s, Go at
+2 bits/point ≈ 23, backgammon/poker smaller still: essentially the
+whole classic self-play catalog, where env throughput genuinely
+bottlenecks research. It is NOT the scale of KB-to-MB simulation
+states (city builders, battle sims, 3D worlds, even this repo's own
+full-grid sokoban — a named doesn't-fit). Those live at rungs 1-3 on
+XLA, where the honest wins in this repo's tables are 1-34× depending
+on how much control flow the reference carries — most of what this
+repo teaches (branchless discipline, analytic deletion, LUTs, the
+collapse principle, the measurement methodology) applies there
+unchanged. The open extension is the **shared-memory tier**: a few KB
+per env while still deleting the launch/materialization floor —
+unmeasured here (it would need its own A/B, not extrapolation), with
+Stanford's Madrona engine as precedent that whole game worlds can
+batch-simulate inside one persistent kernel at the tier above that.
+
 ## Thirty seconds of usage
 
 ```python

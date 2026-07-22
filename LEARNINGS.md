@@ -323,6 +323,12 @@ earlier. The stochastic-loop rung is not a refinement; it is co-equal
 with rung 1.
 
 ## 7. Open questions
+- [ ] Shared-memory-tier megakernel: the register tier caps at a few
+      hundred bytes/env (README scope note); SMEM offers a few KB/env
+      while still deleting the launch/materialization floor. Does the
+      win survive the bandwidth re-entry? Needs its own A/B on a
+      KB-state env (entity-list sokoban is the natural candidate);
+      precedent at the tier above: Madrona (Stanford).
 - [ ] WebGPU port: do the same primitives hit the same ratios in-browser?
 - [ ] Controlled-hardware floor study (headless box): unroll/RNG/donation.
 - [ ] DSL: can sokoban's step be expressed purely in §4 primitives?
